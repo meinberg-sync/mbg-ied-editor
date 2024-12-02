@@ -3,7 +3,7 @@ import { fixture, expect } from '@open-wc/testing';
 
 import '../mbg-ied-editor.js';
 
-describe('MbgPluginTemplate', () => {
+describe('MbgIedEditor', () => {
   let element;
   beforeEach(async () => {
     element = await fixture(html`<mbg-ied-editor></mbg-ied-editor>`);
