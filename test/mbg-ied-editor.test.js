@@ -1,12 +1,12 @@
 import { html } from 'lit';
 import { fixture, expect } from '@open-wc/testing';
 
-import '../mbg-plugin-template.js';
+import '../mbg-ied-editor.js';
 
 describe('MbgPluginTemplate', () => {
   let element;
   beforeEach(async () => {
-    element = await fixture(html`<mbg-plugin-template></mbg-plugin-template>`);
+    element = await fixture(html`<mbg-ied-editor></mbg-ied-editor>`);
   });
 
   it('passes the a11y audit', async () => {

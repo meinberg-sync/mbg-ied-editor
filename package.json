@@ -1,8 +1,8 @@
 {
-  "name": "mbg-plugin-template",
-  "description": "Webcomponent mbg-plugin-template following open-wc recommendations",
+  "name": "mbg-ied-editor",
+  "description": "Webcomponent mbg-ied-editor following open-wc recommendations",
   "license": "MIT",
-  "author": "mbg-plugin-template",
+  "author": "mbg-ied-editor",
   "version": "0.0.0",
   "type": "module",
   "scripts": {

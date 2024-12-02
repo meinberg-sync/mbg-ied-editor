@@ -6,7 +6,7 @@ import { generateSW } from 'rollup-plugin-workbox';
 import path from 'path';
 
 export default {
-  input: 'mbg-plugin-template.js',
+  input: 'mbg-ied-editor.js',
   output: {
     format: 'es',
     dir: 'dist',
