@@ -43,6 +43,13 @@
   ],
   "editor": [
     {
+      "name": "IED Editor",
+      "icon": "build",
+      "active": true,
+      "requireDoc": true,
+      "src": "../mbg-ied-editor.js"
+    },
+    {
       "name": "Start",
       "translations": {
         "de": "Start"
@@ -72,13 +79,6 @@
       "requireDoc": true,
       "src": "https://openenergytools.github.io/scl-editor/plugins/scl-ied-editor/scl-ied-editor.js",
       "TODO": "Needs to be reimplemented from legacy OpenSCD to allow editing; current version is display only"
-    },
-    {
-      "name": "Template Plug-In",
-      "icon": "build",
-      "active": true,
-      "requireDoc": true,
-      "src": "../mbg-ied-editor.js"
     }
   ]
 }

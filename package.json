@@ -18,6 +18,8 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
+    "@material/web": "^2.2.0",
+    "@openenergytools/scl-lib": "^1.0.0",
     "lit": "^3.1.4"
   },
   "devDependencies": {
