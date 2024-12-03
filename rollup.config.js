@@ -19,7 +19,7 @@ export default {
     /** Minify JS, compile JS to a lower language target */
     esbuild({
       minify: true,
-      target: ['chrome64', 'firefox67', 'safari11.1'],
+      target: 'esnext', // TODO: add oldest browsers that support top-level await
     }),
     /** Bundle assets references via import.meta.url */
     importMetaAssets(),
