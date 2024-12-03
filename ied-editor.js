@@ -1,4 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { classMap } from 'lit/directives/class-map.js';
+
 import { updateIED } from '@openenergytools/scl-lib';
 
 import '@material/web/textfield/filled-text-field.js';
@@ -138,10 +140,10 @@ export class IedEditor extends LitElement {
 
     return dataModel.entries().map(
       ([key, value]) =>
-        html` <details class="${odd ? 'odd' : nothing}">
-          <summary class="${values?.has(key) ? 'instantiated' : nothing}">
+        html` <details class="${classMap({ odd })}">
+          <summary class="${classMap({ instantiated: values?.has(key) })}">
             ${key.getAttribute('name')}
-            ${value.size === 0
+            ${value.size === 0 && !values?.get(key)?.length
               ? html`<md-icon-button
                   @click=${() => {
                     const val = key.ownerDocument.createElementNS(
