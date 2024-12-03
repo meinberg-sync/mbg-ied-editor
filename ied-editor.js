@@ -260,6 +260,8 @@ export class IedEditor extends LitElement {
 
   static styles = css`
     * {
+      --mbg-ied-editor-spacing: 1rem;
+
       --md-sys-color-surface-container-highest: var(--oscd-base3);
       --md-sys-color-primary: var(--oscd-primary);
       --md-sys-color-on-surface-variant: var(--oscd-base00);
@@ -310,7 +312,8 @@ export class IedEditor extends LitElement {
     }
 
     details {
-      padding-left: 1rem;
+      padding-left: var(--mbg-ied-editor-spacing);
+      padding-right: var(--mbg-ied-editor-spacing);
       font-size: 20px;
       line-height: 1.5;
       background: var(--oscd-base2);
@@ -353,6 +356,10 @@ export class IedEditor extends LitElement {
     details.odd > * > * > md-icon-button {
       --md-icon-button-hover-state-layer-color: var(--oscd-base2);
       --md-icon-button-hover-icon-color: var(--oscd-base01);
+    }
+
+    details:last-of-type[open] {
+      padding-bottom: var(--mbg-ied-editor-spacing);
     }
   `;
 }
