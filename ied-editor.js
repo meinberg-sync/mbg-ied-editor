@@ -139,11 +139,7 @@ export class IedEditor extends LitElement {
     return dataModel.entries().map(
       ([key, value]) =>
         html` <details class="${odd ? 'odd' : nothing}">
-          <summary
-            style="${values?.has(key)
-              ? 'font-weight: bold; color: var(--oscd-primary)'
-              : nothing}"
-          >
+          <summary class="${values?.has(key) ? 'instantiated' : nothing}">
             ${key.getAttribute('name')}
             ${value.size === 0
               ? html`<md-icon-button
@@ -259,7 +255,7 @@ export class IedEditor extends LitElement {
   }
 
   static styles = css`
-    * {
+    :host {
       --mbg-ied-editor-spacing: 1rem;
 
       --md-sys-color-surface-container-highest: var(--oscd-base3);
@@ -329,14 +325,22 @@ export class IedEditor extends LitElement {
       user-select: none;
     }
 
+    summary.instantiated {
+      color: var(--oscd-primary);
+    }
+
     span.type {
-      display: inline-block;
       opacity: 0;
       transition: opacity 0.05s cubic-bezier(0.9, 0, 1, 0.45);
       padding-left: 1rem;
       font-weight: normal;
       font-size: 16px;
       vertical-align: middle;
+      float: right;
+    }
+
+    summary:hover {
+      font-weight: bold;
     }
 
     details:hover > summary > span.type {
