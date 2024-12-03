@@ -5,6 +5,19 @@ import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 
+function findInstanceToRemove(element) {
+  const parent = element.parentElement;
+  const siblings = Array.from(parent.children).filter(
+    child => child.tagName === element.tagName,
+  );
+
+  if (siblings.length > 1 || !['DAI', 'DOI'].includes(parent.tagName)) {
+    return element;
+  }
+
+  return findInstanceToRemove(parent);
+}
+
 function getValues(instance, dataModel) {
   // instance -> DOI* -> DAI* -> Val
   // match DOI name w/ DO name (same with DAI and DA)
@@ -96,7 +109,7 @@ export class IedEditor extends LitElement {
     return instance;
   }
 
-  renderDataModel(dataModel, values, ln, path = []) {
+  renderDataModel(dataModel, values, ln, path = [], odd = false) {
     if (Array.isArray(values)) {
       return html`
         <ul>
@@ -111,7 +124,7 @@ export class IedEditor extends LitElement {
                         composed: true,
                         bubbles: true,
                         detail: {
-                          node: value,
+                          node: findInstanceToRemove(value),
                         },
                       }),
                     )}
@@ -125,8 +138,12 @@ export class IedEditor extends LitElement {
 
     return dataModel.entries().map(
       ([key, value]) =>
-        html` <details>
-          <summary style="${values?.has(key) ? 'font-weight: bold;' : nothing}">
+        html` <details class="${odd ? 'odd' : nothing}">
+          <summary
+            style="${values?.has(key)
+              ? 'font-weight: bold; color: var(--oscd-primary)'
+              : nothing}"
+          >
             ${key.getAttribute('name')}
             ${value.size === 0
               ? html`<md-icon-button
@@ -156,6 +173,9 @@ export class IedEditor extends LitElement {
                   ><md-icon>add</md-icon></md-icon-button
                 >`
               : nothing}
+            <span class="type"
+              >${key.getAttribute('type') || key.getAttribute('bType')}</span
+            >
           </summary>
           ${this.renderDataModel(
             value,
@@ -165,6 +185,7 @@ export class IedEditor extends LitElement {
               name: key.getAttribute('name'),
               tag: ['DO', 'SDO'].includes(key.tagName) ? 'DOI' : 'DAI',
             }),
+            !odd,
           )}
         </details>`,
     );
@@ -203,7 +224,7 @@ export class IedEditor extends LitElement {
           this.ied.querySelectorAll(':scope > AccessPoint > Server'),
         ).map(
           server =>
-            html` <details open>
+            html` <details class="odd" open>
               <summary>
                 ${server.parentElement.getAttribute('name')} Server
               </summary>
@@ -215,13 +236,15 @@ export class IedEditor extends LitElement {
                       ld.querySelectorAll(':scope > LN0, :scope > LN'),
                     ).map(
                       ln => html`
-                        <details>
+                        <details class="odd">
                           <summary>
                             ${ln.getAttribute('prefix')}${ln.getAttribute(
                               'lnClass',
                             )}${ln.getAttribute('inst')}
+                            <span class="type"
+                              >${ln.getAttribute('lnType')}</span
+                            >
                           </summary>
-                          Type: ${ln.getAttribute('lnType')}
                           ${this.renderLN(ln)}
                         </details>
                       `,
@@ -236,18 +259,100 @@ export class IedEditor extends LitElement {
   }
 
   static styles = css`
+    * {
+      --md-sys-color-surface-container-highest: var(--oscd-base3);
+      --md-sys-color-primary: var(--oscd-primary);
+      --md-sys-color-on-surface-variant: var(--oscd-base00);
+      --md-sys-typescale-body-large-font: var(--oscd-text-font);
+
+      --md-filled-text-field-active-indicator-color: var(--oscd-base0);
+      --md-filled-text-field-active-indicator-height: 1px;
+      --md-filled-text-field-label-text-color: var(--oscd-base1);
+      --md-filled-text-field-input-text-color: var(--oscd-base00);
+      --md-filled-text-field-hover-label-text-color: var(--oscd-base0);
+      --md-filled-text-field-hover-input-text-color: var(--oscd-base01);
+      --md-filled-text-field-focus-label-text-color: var(--oscd-primary);
+      --md-filled-text-field-focus-input-text-color: var(--oscd-base01);
+      --md-filled-text-field-input-text-size: 18px;
+
+      --md-icon-button-state-layer-height: 26px;
+      --md-icon-button-state-layer-width: 26px;
+      --md-icon-button-icon-size: 24px;
+      --md-icon-button-hover-state-layer-color: var(--oscd-base3);
+      --md-icon-button-hover-icon-color: var(--oscd-base00);
+      --md-icon-button-hover-state-layer-opacity: 1;
+
+      --oscd-primary: var(--oscd-theme-primary, #2aa198);
+      --oscd-secondary: var(--oscd-theme-secondary, #6c71c4);
+      --oscd-error: var(--oscd-theme-error, #dc322f);
+
+      --oscd-base03: var(--oscd-theme-base03, #002b36);
+      --oscd-base02: var(--oscd-theme-base02, #073642);
+      --oscd-base01: var(--oscd-theme-base01, #586e75);
+      --oscd-base00: var(--oscd-theme-base00, #657b83);
+      --oscd-base0: var(--oscd-theme-base0, #839496);
+      --oscd-base1: var(--oscd-theme-base1, #93a1a1);
+      --oscd-base2: var(--oscd-theme-base2, #eee8d5);
+      --oscd-base3: var(--oscd-theme-base3, #fdf6e3);
+
+      --oscd-text-font: var(--oscd-theme-text-font, 'Roboto');
+      --oscd-icon-font: var(--oscd-theme-icon-font, 'Material Icons');
+    }
+
     main {
       display: flex;
       flex-direction: column;
       gap: 1rem;
     }
 
+    md-filled-text-field {
+      width: max-content;
+    }
+
     details {
       padding-left: 1rem;
+      font-size: 20px;
+      line-height: 1.5;
+      background: var(--oscd-base2);
+      color: var(--oscd-base01);
+    }
+
+    details.odd {
+      background: var(--oscd-base3);
+      color: var(--oscd-base00);
     }
 
     summary {
       user-select: none;
+    }
+
+    span.type {
+      display: inline-block;
+      opacity: 0;
+      transition: opacity 0.05s cubic-bezier(0.9, 0, 1, 0.45);
+      padding-left: 1rem;
+      font-weight: normal;
+      font-size: 16px;
+      vertical-align: middle;
+    }
+
+    details:hover > summary > span.type {
+      opacity: 0.7;
+      transition: opacity 0.2s cubic-bezier(0, 0.9, 0.45, 1);
+    }
+
+    ul {
+      margin: 0px;
+    }
+
+    md-icon-button {
+      vertical-align: sub;
+    }
+
+    details.odd > * > md-icon-button,
+    details.odd > * > * > md-icon-button {
+      --md-icon-button-hover-state-layer-color: var(--oscd-base2);
+      --md-icon-button-hover-icon-color: var(--oscd-base01);
     }
   `;
 }
