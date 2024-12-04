@@ -84,9 +84,9 @@ export class IedEditor extends LitElement {
     }
 
     const edits = [];
-    let instance = ln.querySelector(`:scope > [name="${path[0].name}"]`);
-    for (let i = 1; i < path.length; i += 1) {
-      let nextInstance = instance.querySelector(
+    let instance = ln;
+    for (let i = 0; i < path.length; i += 1) {
+      let nextInstance = instance?.querySelector(
         `:scope > [name="${path[i].name}"]`,
       );
       if (!nextInstance) {
