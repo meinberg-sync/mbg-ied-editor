@@ -78,7 +78,7 @@ export class IedEditor extends LitElement {
     editCount: { type: Number },
   };
 
-  instanciatePath(path, ln) {
+  instantiatePath(path, ln) {
     if (path.length === 0) {
       throw new Error('Empty path');
     }
@@ -101,14 +101,7 @@ export class IedEditor extends LitElement {
       instance = nextInstance;
     }
 
-    this.dispatchEvent(
-      new CustomEvent('oscd-edit', {
-        composed: true,
-        bubbles: true,
-        detail: edits,
-      }),
-    );
-    return instance;
+    return { parent: instance, edits };
   }
 
   renderDataModel(dataModel, values, ln, path = [], odd = false) {
@@ -151,20 +144,24 @@ export class IedEditor extends LitElement {
                       'Val',
                     );
                     val.textContent = prompt('Value');
+                    const { parent, edits } = this.instantiatePath(
+                      path.concat([
+                        { name: key.getAttribute('name'), tag: 'DAI' },
+                      ]),
+                      ln,
+                    );
                     this.dispatchEvent(
                       new CustomEvent('oscd-edit', {
                         composed: true,
                         bubbles: true,
-                        detail: {
-                          node: val,
-                          parent: this.instanciatePath(
-                            path.concat([
-                              { name: key.getAttribute('name'), tag: 'DAI' },
-                            ]),
-                            ln,
-                          ),
-                          reference: null,
-                        },
+                        detail: [
+                          ...edits,
+                          {
+                            node: val,
+                            parent,
+                            reference: null,
+                          },
+                        ],
                       }),
                     );
                   }}
