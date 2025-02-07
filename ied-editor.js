@@ -3,6 +3,8 @@ import { classMap } from 'lit/directives/class-map.js';
 
 import { updateIED } from '@openenergytools/scl-lib';
 
+import 'mbg-val-input/mbg-val-input.js';
+
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
@@ -140,6 +142,112 @@ export class IedEditor extends LitElement {
     return { parent: instance, edits };
   }
 
+  updateValue(value, ln, path) {
+    // start building distinct id for the mbg-value-input
+    const lnClass = ln.getAttribute('lnClass');
+    const lnInst = ln.getAttribute('inst');
+    let elementID = `${lnClass}${lnInst}`;
+    for (let i = 0; i < path.length; i += 1) {
+      elementID += `-${path[i].name}`;
+    }
+    const input = this.shadowRoot.getElementById(`${elementID}`);
+
+    // eslint-disable-next-line no-param-reassign
+    value.textContent = input.value;
+    const { parent, edits } = this.instantiatePath(path, ln);
+    this.dispatchEvent(
+      new CustomEvent('oscd-edit', {
+        composed: true,
+        bubbles: true,
+        detail: [
+          ...edits,
+          {
+            node: value,
+            parent,
+            reference: null,
+          },
+        ],
+      }),
+    );
+  }
+
+  renderValueInput(value, ln, path) {
+    const lnType = ln.getAttribute('lnType');
+
+    // build distinct id for the mbg-value-input
+    const lnClass = ln.getAttribute('lnClass');
+    const lnInst = ln.getAttribute('inst');
+    let elementID = `${lnClass}${lnInst}`;
+    for (let i = 0; i < path.length; i += 1) {
+      elementID += `-${path[i].name}`;
+    }
+
+    // iterate through the path to get the most nested parent DO
+    let i = 0;
+    let parentDOName = '';
+    let parentDOType = '';
+    for (; i < path.length - 1; i += 1) {
+      if (path[i].tag === 'DAI') {
+        break;
+      }
+      parentDOName = path[i].name;
+      parentDOType = this.doc
+        .querySelector(
+          `:root > DataTypeTemplates > LNodeType[id="${lnType}"] > DO[name="${parentDOName}"]`,
+        )
+        .getAttribute('type');
+    }
+
+    // get the first DA instance from the parent DO
+    let parentDAName = path[i].name;
+    let parentDA = this.doc?.querySelector(
+      `:root > DataTypeTemplates > DOType[id="${parentDOType}"] > DA[name="${parentDAName}"]`,
+    );
+    i += 1;
+
+    // iterate through the path to get the most nested parent DA
+    for (; i < path.length; i += 1) {
+      const parentDAType = parentDA.getAttribute('type');
+      parentDAName = path[i].name;
+      parentDA = this.doc?.querySelector(
+        `:root > DataTypeTemplates > DAType[id="${parentDAType}"] > BDA[name="${parentDAName}"]`,
+      );
+    }
+
+    // get the type of the most nested parent DA
+    const bType = parentDA.getAttribute('bType');
+
+    // if it is an enum type, get the ordinal numbers and string labels
+    if (bType === 'Enum') {
+      const enumType = parentDA.getAttribute('type');
+      const enumTypeElement = this.doc.querySelector(
+        `:root > DataTypeTemplates > EnumType[id="${enumType}"]`,
+      );
+
+      const enumVals = enumTypeElement.querySelectorAll('EnumVal');
+      const enumOrdinals = Array.from(enumVals).map(enumVal =>
+        enumVal.getAttribute('ord'),
+      );
+      const enumLabels = Array.from(enumVals).map(
+        enumVal => enumVal.textContent,
+      );
+
+      return html`<mbg-val-input
+        id="${elementID}"
+        bType="${bType}"
+        .enumOrdinals=${JSON.stringify(enumOrdinals)}
+        .enumLabels=${JSON.stringify(enumLabels)}
+        default="${value.textContent}"
+      ></mbg-val-input>`;
+    }
+
+    return html`<mbg-val-input
+      id="${elementID}"
+      bType="${bType ?? ''}"
+      default="${value.textContent}"
+    ></mbg-val-input>`;
+  }
+
   renderDataModel(dataModel, values, ln, path = [], odd = false) {
     if (Array.isArray(values)) {
       return html`
@@ -147,7 +255,11 @@ export class IedEditor extends LitElement {
           ${values.map(
             value =>
               html` <li>
-                ${value.textContent}
+                ${this.renderValueInput(value, ln, path)}
+                <md-icon-button
+                  @click=${() => this.updateValue(value, ln, path)}
+                  ><md-icon>save</md-icon></md-icon-button
+                >
                 <md-icon-button
                   @click=${() =>
                     this.dispatchEvent(
@@ -179,7 +291,8 @@ export class IedEditor extends LitElement {
                       ln.namespaceURI,
                       'Val',
                     );
-                    val.textContent = prompt('Value');
+                    // set the value to an empty string for user to edit
+                    val.textContent = '';
                     const { parent, edits } = this.instantiatePath(
                       path.concat([
                         { name: key.getAttribute('name'), tag: 'DAI' },
@@ -577,6 +690,8 @@ export class IedEditor extends LitElement {
 
     ul {
       margin: 0px;
+      list-style-type: none;
+      padding: 10px 0px 10px 0px;
     }
 
     md-icon-button {
@@ -593,6 +708,25 @@ export class IedEditor extends LitElement {
 
     details:last-of-type[open] {
       padding-bottom: var(--mbg-ied-editor-spacing);
+    }
+
+    details.odd > * > mbg-val-input[bType='Quality'],
+    details.odd > * > * > mbg-val-input[bType='Quality'],
+    details.odd > * > mbg-val-input[bType='Currency'],
+    details.odd > * > * > mbg-val-input[bType='Currency'],
+    details.odd > * > mbg-val-input[bType='Enum'],
+    details.odd > * > * > mbg-val-input[bType='Enum'] {
+      --md-sys-color-surface-container-highest: var(--oscd-base2);
+      --md-sys-color-surface-container: var(--oscd-base3);
+      --md-sys-color-secondary-container: var(--oscd-base2);
+    }
+
+    mbg-val-input[bType='Quality'],
+    mbg-val-input[bType='Currency'],
+    mbg-val-input[bType='Enum'] {
+      --md-sys-color-surface-container-highest: var(--oscd-base3);
+      --md-sys-color-surface-container: var(--oscd-base3);
+      --md-sys-color-secondary-container: var(--oscd-base2);
     }
   `;
 }
