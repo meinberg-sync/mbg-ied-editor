@@ -144,9 +144,10 @@ export class IedEditor extends LitElement {
 
   updateValue(value, ln, path) {
     // start building distinct id for the mbg-value-input
+    const parentLD = ln.parentNode.getAttribute('inst');
     const lnClass = ln.getAttribute('lnClass');
     const lnInst = ln.getAttribute('inst');
-    let elementID = `${lnClass}${lnInst}`;
+    let elementID = `${parentLD}-${lnClass}${lnInst}`;
     for (let i = 0; i < path.length; i += 1) {
       elementID += `-${path[i].name}`;
     }
@@ -175,9 +176,10 @@ export class IedEditor extends LitElement {
     const lnType = ln.getAttribute('lnType');
 
     // build distinct id for the mbg-value-input
+    const parentLD = ln.parentNode.getAttribute('inst');
     const lnClass = ln.getAttribute('lnClass');
     const lnInst = ln.getAttribute('inst');
-    let elementID = `${lnClass}${lnInst}`;
+    let elementID = `${parentLD}-${lnClass}${lnInst}`;
     for (let i = 0; i < path.length; i += 1) {
       elementID += `-${path[i].name}`;
     }
