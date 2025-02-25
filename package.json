@@ -21,7 +21,7 @@
     "@material/web": "^2.2.0",
     "@openenergytools/scl-lib": "^1.0.0",
     "lit": "^3.1.4",
-    "mbg-val-input": "^0.4.1"
+    "mbg-val-input": "^0.4.2"
   },
   "devDependencies": {
     "@babel/plugin-syntax-import-assertions": "^7.26.0",
