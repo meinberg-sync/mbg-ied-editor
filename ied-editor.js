@@ -55,6 +55,69 @@ function findInstanceToRemove(element) {
   return findInstanceToRemove(parent);
 }
 
+// looks for values in DataTypeTemplates
+function getTemplateValues(eltType, dataModel, template, path = []) {
+  // check if the current instance has nested values
+  const childVals = Array.from(eltType.children).filter(
+    child => child.tagName === 'Val',
+  );
+
+  // if so, clone the values and return
+  if (childVals.length > 0) {
+    const clonedVals = childVals.map(val => val.cloneNode(true));
+    return clonedVals;
+  }
+
+  const children = Array.from(eltType.children).filter(child =>
+    ['DO', 'DA', 'SDO', 'BDA'].includes(child.tagName),
+  );
+
+  const templateValues = new Map();
+
+  dataModel.forEach((value, key) => {
+    const matchingChild = children.find(
+      child => child.getAttribute('name') === key.getAttribute('name'),
+    );
+    if (!matchingChild) return;
+
+    // build the path for where the value will be inserted in the IED
+    const newPath = path.concat({
+      name: key.getAttribute('name'),
+      tag: ['DO', 'SDO'].includes(key.tagName) ? 'DOI' : 'DAI',
+    });
+
+    if (
+      ['DA', 'BDA'].includes(key.nodeName) &&
+      key.getAttribute('bType') !== 'Struct'
+    ) {
+      if (key.querySelector('Val')) {
+        templateValues.set(key, {
+          value: getTemplateValues(key, value, template, newPath),
+          path: newPath,
+        });
+      }
+    } else if (key.getAttribute('type')) {
+      const nextEltType = template.querySelector(
+        `:scope > [id="${key.getAttribute('type')}"]`,
+      );
+
+      if (nextEltType) {
+        const nextValues = getTemplateValues(
+          nextEltType,
+          value,
+          template,
+          newPath,
+        );
+        if (nextValues.size > 0) {
+          templateValues.set(key, { value: nextValues, path: newPath });
+        }
+      }
+    }
+  });
+
+  return templateValues;
+}
+
 function getValues(instance, dataModel) {
   // instance -> DOI* -> DAI* -> Val
   // match DOI name w/ DO name (same with DAI and DA)
@@ -140,6 +203,50 @@ export class IedEditor extends LitElement {
     }
 
     return { parent: instance, edits };
+  }
+
+  insertTemplateValues(ln, templateValues) {
+    templateValues.forEach(({ value }) => {
+      value.forEach(key => {
+        const valElements = Array.isArray(key.value) ? key.value : [key.value];
+
+        valElements.forEach(valObj => {
+          if (!(valObj instanceof Element)) {
+            return;
+          }
+
+          // clone element so it is not removed from DataTypeTemplates
+          const cloneVal = valObj.cloneNode(true);
+
+          const { parent, edits } = this.instantiatePath(key.path, ln);
+
+          // check if <Val> already exists
+          const existingVal = parent.querySelector(':scope > Val');
+          if (!existingVal) {
+            // if it does not exist, add it to the IED
+            edits.push({
+              node: cloneVal,
+              parent,
+              reference: null,
+            });
+          } else if (!existingVal.textContent) {
+            // if it does exist, but is empty, replace with default value
+            existingVal.textContent = cloneVal.textContent;
+          }
+
+          // Dispatch event once per update
+          if (edits.length > 0) {
+            this.dispatchEvent(
+              new CustomEvent('oscd-edit', {
+                composed: true,
+                bubbles: true,
+                detail: edits,
+              }),
+            );
+          }
+        });
+      });
+    });
   }
 
   updateValue(value, ln, path) {
@@ -336,11 +443,17 @@ export class IedEditor extends LitElement {
   }
 
   renderLN(ln) {
-    const lnType = this.doc?.querySelector(
-      `:root > DataTypeTemplates > LNodeType[id="${ln.getAttribute('lnType')}"]`,
+    const template = this.doc?.querySelector(`:root > DataTypeTemplates`);
+    const lnType = template.querySelector(
+      `:scope > LNodeType[id="${ln.getAttribute('lnType')}"]`,
     );
+
     const dataModel = getDataModel(lnType);
+
+    const templateValues = getTemplateValues(lnType, dataModel, template);
+    this.insertTemplateValues(ln, templateValues);
     const values = getValues(ln, dataModel);
+
     return this.renderDataModel(dataModel, values, ln);
   }
 
