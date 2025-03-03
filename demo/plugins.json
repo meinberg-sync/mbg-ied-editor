@@ -59,13 +59,6 @@
       "src": "https://openenergytools.github.io/scl-editor/plugins/scl-editor-landing/scl-editor-landing.js"
     },
     {
-      "name": "Publisher",
-      "icon": "publish",
-      "active": true,
-      "requireDoc": true,
-      "src": "https://openenergytools.github.io/scl-editor/plugins/oscd-publisher/oscd-publisher.js"
-    },
-    {
       "name": "Communication",
       "icon": "settings_ethernet",
       "active": true,
