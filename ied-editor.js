@@ -550,7 +550,7 @@ export class IedEditor extends LitElement {
       <main>
         <md-filled-text-field
           class="ied-name"
-          label="IED Name"
+          label="Edit IED Name"
           value="${this.ied?.getAttribute('name')}"
           @change=${e => {
             this.iedName = e.target.value;
@@ -564,10 +564,10 @@ export class IedEditor extends LitElement {
           <md-icon-button
             aria-label="Save"
             slot="trailing-icon"
-            title="Save IED Name"
+            title="Enter and Save the new IED name"
             @click=${() => this.enterIEDName()}
           >
-            <md-icon>save</md-icon>
+            <md-icon>save_as</md-icon>
           </md-icon-button>
         </md-filled-text-field>
 
@@ -592,7 +592,7 @@ export class IedEditor extends LitElement {
             </md-filled-text-field>
           </div>
 
-          <div class="search-settings">
+          <div class="search-settings" role="radiogroup" aria-label="Display">
             <p>Display:</p>
             <form
               id="search-mode"

@@ -3,6 +3,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import { IedEditor } from './ied-editor.js';
 
 import '@material/web/icon/icon.js';
+import '@material/web/select/filled-select.js';
+import '@material/web/select/select-option.js';
 
 customElements.define('ied-editor', IedEditor);
 
@@ -36,31 +38,29 @@ export default class MbgIedEditor extends LitElement {
 
     return html`
       <main>
-        <select
-          name="ieds"
+        <md-filled-select
           id="ied-selector"
+          label="Select IED"
+          aria-labelledby="group-title"
           @change=${() => this.requestUpdate()}
         >
-          <option value="">Select IED</option>
           ${repeat(
             manufacturers,
             manufacturer => manufacturer,
             manufacturer => html`
-              <optgroup label="${manufacturer}">
-                ${repeat(
-                  iedsByManufacturer[manufacturer],
-                  ied => ied,
-                  ied => html`
-                    <option value="${ied.getAttribute('name')}">
-                      ${ied.getAttribute('name')}
-                    </option>
-                  `,
-                )}
-              </optgroup>
+              <h3 id="group-title">${manufacturer}</h3>
+              ${repeat(
+                iedsByManufacturer[manufacturer],
+                ied => ied,
+                ied => html`
+                  <md-select-option value="${ied.getAttribute('name')}">
+                    <div slot="headline">${ied.getAttribute('name')}</div>
+                  </md-select-option>
+                `,
+              )}
             `,
           )}
-        </select>
-        <md-icon class="dropdown-icon">arrow_drop_down</md-icon>
+        </md-filled-select>
 
         ${this.ied &&
         html`<ied-editor
@@ -74,6 +74,24 @@ export default class MbgIedEditor extends LitElement {
 
   static styles = css`
     * {
+      scrollbar-color: var(--oscd-primary) var(--oscd-base3);
+
+      --md-sys-color-surface-container-highest: var(--oscd-base3);
+      --md-sys-color-surface-container: var(--oscd-base3);
+      --md-sys-color-secondary-container: var(--oscd-base2);
+      --md-sys-color-primary: var(--oscd-primary);
+      --md-sys-color-on-surface: var(--oscd-base00);
+      --md-sys-typescale-body-large-font: var(--oscd-text-font);
+
+      --md-filled-select-text-field-active-indicator-color: var(--oscd-base0);
+      --md-filled-select-text-field-active-indicator-height: 1px;
+      --md-filled-select-text-field-label-text-color: var(--oscd-base1);
+      --md-filled-select-text-field-input-text-color: var(--oscd-base00);
+      --md-filled-select-text-field-hover-label-text-color: var(--oscd-base0);
+      --md-filled-select-text-field-hover-input-text-color: var(--oscd-base01);
+      --md-filled-select-text-field-focus-label-text-color: var(--oscd-primary);
+      --md-filled-select-text-field-focus-input-text-color: var(--oscd-base01);
+
       --oscd-primary: var(--oscd-theme-primary, #2aa198);
       --oscd-secondary: var(--oscd-theme-secondary, #6c71c4);
       --oscd-error: var(--oscd-theme-error, #dc322f);
@@ -99,26 +117,14 @@ export default class MbgIedEditor extends LitElement {
     }
 
     #ied-selector {
+      --md-filled-select-text-field-input-text-size: 18px;
+
       margin-bottom: 1rem;
-      appearance: none;
-      padding: 16px 32px 16px 16px;
-      text-align: left;
-      font-size: 18px;
-      background-color: var(--oscd-base3);
-      color: var(--oscd-base00);
-      border: none;
-      border-bottom: 1px solid var(--oscd-base0);
-      border-radius: 4px 4px 0 0;
     }
 
-    #ied-selector:focus {
-      outline: none;
-    }
-
-    .dropdown-icon {
-      position: relative;
-      left: -34px;
-      top: 6px;
+    #group-title {
+      font-size: 15px;
+      margin: 0.5rem;
     }
   `;
 }
