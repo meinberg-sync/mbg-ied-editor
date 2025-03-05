@@ -1,8 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 
-import { updateIED } from '@openenergytools/scl-lib';
-
 import 'mbg-val-input/mbg-val-input.js';
 
 import '@material/web/textfield/filled-text-field.js';
@@ -530,47 +528,9 @@ export class IedEditor extends LitElement {
     this.requestUpdate();
   }
 
-  enterIEDName() {
-    if (this.iedName !== '') {
-      this.dispatchEvent(
-        new CustomEvent('oscd-edit', {
-          composed: true,
-          bubbles: true,
-          detail: updateIED({
-            element: this.ied,
-            attributes: { name: this.iedName },
-          }),
-        }),
-      );
-    }
-  }
-
   render() {
     return html`
       <main>
-        <md-filled-text-field
-          class="ied-name"
-          label="Edit IED Name"
-          value="${this.ied?.getAttribute('name')}"
-          @change=${e => {
-            this.iedName = e.target.value;
-          }}
-          @keydown=${e => {
-            if (e.key === 'Enter') {
-              this.enterIEDName();
-            }
-          }}
-        >
-          <md-icon-button
-            aria-label="Save"
-            slot="trailing-icon"
-            title="Enter and Save the new IED name"
-            @click=${() => this.enterIEDName()}
-          >
-            <md-icon>save_as</md-icon>
-          </md-icon-button>
-        </md-filled-text-field>
-
         <div class="search-container">
           <div class="search-field">
             <md-filled-text-field
