@@ -106,7 +106,7 @@ export default class MbgIedEditor extends LitElement {
             aria-labelledby="group-title"
             @change=${this.updateEditor}
           >
-            <md-select-option value="">
+            <md-select-option value="" class="placeholder">
               <div slot="headline"></div>
             </md-select-option>
             ${repeat(
@@ -246,6 +246,10 @@ export default class MbgIedEditor extends LitElement {
 
     #ied-selector {
       --md-filled-select-text-field-input-text-size: 18px;
+    }
+
+    .placeholder {
+      display: none;
     }
 
     #group-title {
