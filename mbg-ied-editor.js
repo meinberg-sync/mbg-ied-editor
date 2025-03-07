@@ -41,16 +41,18 @@ export default class MbgIedEditor extends LitElement {
 
   showIedNameInput() {
     const iedNameContainer = this.shadowRoot.querySelector('#ied-name-input');
-    const button = this.shadowRoot.querySelector('#edit-name-button');
-    const icon = button.querySelector('md-icon');
     iedNameContainer.classList.toggle('show');
 
+    const button = this.shadowRoot.querySelector('#edit-name-button');
+    const icon = button.querySelector('md-icon');
+    const tooltip = this.shadowRoot.querySelector('#edit-name-tooltip');
+
     if (iedNameContainer.classList.contains('show')) {
-      button.setAttribute('title', 'Close IED name editor');
       icon.textContent = 'cancel';
+      tooltip.textContent = 'Click to close the IED name editor';
     } else {
-      button.setAttribute('title', 'Edit IED name');
       icon.textContent = 'edit';
+      tooltip.textContent = 'Click to edit the IED name';
     }
   }
 
@@ -128,15 +130,18 @@ export default class MbgIedEditor extends LitElement {
           </md-filled-select>
 
           <div class="ied-input-container">
-            <md-icon-button
-              aria-label="Edit IED Name"
-              class="hidden-input"
-              id="edit-name-button"
-              title="Edit the IED name"
-              @click=${() => this.showIedNameInput()}
-            >
-              <md-icon>edit</md-icon>
-            </md-icon-button>
+            <div class="ied-button-container">
+              <md-icon-button
+                aria-label="Edit IED Name"
+                class="hidden-input"
+                id="edit-name-button"
+                @click=${() => this.showIedNameInput()}
+              >
+                <md-icon>edit</md-icon>
+              </md-icon-button>
+              <span id="edit-name-tooltip">Click to edit the IED name</span>
+            </div>
+
             <div class="hidden-input" id="ied-name-input">
               <md-filled-text-field
                 class="ied-name"
@@ -155,7 +160,6 @@ export default class MbgIedEditor extends LitElement {
                 <md-icon-button
                   aria-label="Save"
                   slot="trailing-icon"
-                  title="Enter and Save the new IED name"
                   @click=${() => this.enterIEDName()}
                 >
                   <md-icon>save_as</md-icon>
@@ -263,6 +267,12 @@ export default class MbgIedEditor extends LitElement {
       column-gap: 0.5rem;
     }
 
+    .ied-button-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .hidden-input {
       opacity: 0;
       height: 0;
@@ -280,6 +290,42 @@ export default class MbgIedEditor extends LitElement {
     .ied-name md-icon-button {
       --md-icon-button-hover-state-layer-color: var(--oscd-base2);
       --md-icon-button-hover-icon-color: var(--oscd-base01);
+    }
+
+    #edit-name-tooltip {
+      visibility: hidden;
+      background-color: var(--oscd-base00);
+      padding: 8px;
+      color: var(--oscd-base3);
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid var(--oscd-base00);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+
+      /* Position the tooltip */
+      position: absolute;
+      z-index: 1;
+      margin-top: 100px;
+
+      /* Fade in and out */
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #edit-name-button.show:hover + #edit-name-tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    #edit-name-tooltip::after {
+      content: ' ';
+      position: absolute;
+      bottom: 100%; /* At the top of the tooltip */
+      left: 50%;
+      margin-left: -10px;
+      border-width: 10px;
+      border-style: solid;
+      border-color: transparent transparent var(--oscd-base00) transparent;
     }
   `;
 }
