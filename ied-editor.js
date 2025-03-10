@@ -389,7 +389,12 @@ export class IedEditor extends LitElement {
     return dataModel.entries().map(
       ([key, value]) =>
         html` <details class="${classMap({ odd })}">
-          <summary class="${classMap({ instantiated: values?.has(key) })}">
+          <summary
+            class="${classMap({
+              instantiated: values?.has(key),
+              uninitialized: value.size === 0 && !values?.get(key)?.length,
+            })}"
+          >
             ${key.getAttribute('name')}
             ${value.size === 0 && !values?.get(key)?.length
               ? html`<md-icon-button
@@ -738,6 +743,20 @@ export class IedEditor extends LitElement {
 
     summary.instantiated {
       color: var(--oscd-primary);
+    }
+
+    summary.uninitialized {
+      pointer-events: none;
+      list-style: none;
+    }
+
+    summary.uninitialized > md-icon-button {
+      pointer-events: auto;
+    }
+
+    summary.uninitialized::marker,
+    summary.uninitialized::-webkit-details-marker {
+      display: none;
     }
 
     span.type {
