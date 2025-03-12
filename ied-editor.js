@@ -140,6 +140,53 @@ export class IedEditor extends LitElement {
     return { parent: instance, edits };
   }
 
+  getInstanceDescription(target, host = null, path = []) {
+    // if the instance is in a path, check if it has a description in the IED
+    let instantiatedDesc = '';
+    if (path.length > 0 && host) {
+      let childInstance = host.querySelector(
+        `:scope > DOI[name="${path[0].name}"]`,
+      );
+      for (let i = 1; i < path.length && childInstance; i += 1) {
+        childInstance = childInstance.querySelector(
+          `:scope > *[name="${path[i].name}"]`,
+        );
+      }
+
+      if (childInstance?.getAttribute('name') === target.getAttribute('name')) {
+        instantiatedDesc = childInstance?.getAttribute('desc') ?? '';
+      }
+    }
+
+    if (instantiatedDesc) {
+      return html`<p class="desc">${instantiatedDesc}</p>`;
+    }
+
+    // check if the instance itself has a description
+    if (target.getAttribute('desc')) {
+      return html`<p class="desc">${target.getAttribute('desc')}</p>`;
+    }
+
+    // check if the template has a description
+    const template = this.doc?.querySelector(`:root > DataTypeTemplates`);
+    let instTemplate = null;
+    if (target.nodeName === 'LN' || target.nodeName === 'LN0') {
+      instTemplate = template.querySelector(
+        `:scope > LNodeType[id="${target.getAttribute('lnType')}"]`,
+      );
+    } else if (target.nodeName !== 'LDevice') {
+      instTemplate = template.querySelector(
+        `:scope > *[id="${target.getAttribute('type')}"]`,
+      );
+    }
+
+    if (instTemplate?.getAttribute('desc')) {
+      return html`<p class="desc">${instTemplate?.getAttribute('desc')}</p>`;
+    }
+
+    return nothing;
+  }
+
   updateValue(value, ln, path) {
     // start building distinct id for the mbg-value-input
     const parentLD = ln.parentNode.getAttribute('inst');
@@ -261,7 +308,7 @@ export class IedEditor extends LitElement {
                   ><md-icon>save</md-icon></md-icon-button
                 >
                 <md-icon-button
-                  @click=${() =>
+                  @click=${() => {
                     this.dispatchEvent(
                       new CustomEvent('oscd-edit', {
                         composed: true,
@@ -270,7 +317,15 @@ export class IedEditor extends LitElement {
                           node: findInstanceToRemove(value),
                         },
                       }),
-                    )}
+                    );
+                    // select the current element to get the parent details
+                    const targetButton = this.shadowRoot.activeElement;
+                    // the parent details is 3 levels up
+                    const target =
+                      targetButton.parentElement.parentElement.parentElement;
+                    // close details
+                    target.removeAttribute('open');
+                  }}
                   ><md-icon>delete</md-icon></md-icon-button
                 >
               </li>`,
@@ -324,6 +379,14 @@ export class IedEditor extends LitElement {
               : nothing}
             ${renderDataModelSpan(key)}
           </summary>
+          ${this.getInstanceDescription(
+            key,
+            ln,
+            path.concat({
+              name: key.getAttribute('name'),
+              tag: ['DO', 'SDO'].includes(key.tagName) ? 'DOI' : 'DAI',
+            }),
+          )}
           ${this.renderDataModel(
             value,
             values?.get(key),
@@ -495,6 +558,7 @@ export class IedEditor extends LitElement {
                         ${ld.getAttribute('inst')}
                         <span class="type">${ld.nodeName}</span>
                       </summary>
+                      ${this.getInstanceDescription(ld)}
                       ${Array.from(
                         ld.querySelectorAll(':scope > LN0, :scope > LN'),
                       )
@@ -513,6 +577,7 @@ export class IedEditor extends LitElement {
                                   >
                                 </span>
                               </summary>
+                              ${this.getInstanceDescription(ln)}
                               ${this.renderLN(ln)}
                             </details>
                           `,
@@ -617,6 +682,7 @@ export class IedEditor extends LitElement {
       line-height: 1.5;
       background: var(--oscd-base2);
       color: var(--oscd-base01);
+      max-width: 90vw;
     }
 
     details.odd {
@@ -708,6 +774,12 @@ export class IedEditor extends LitElement {
       --md-sys-color-surface-container-highest: var(--oscd-base3);
       --md-sys-color-surface-container: var(--oscd-base3);
       --md-sys-color-secondary-container: var(--oscd-base2);
+    }
+
+    .desc {
+      margin: 8px 0;
+      font-size: 18px;
+      font-style: italic;
     }
   `;
 }
