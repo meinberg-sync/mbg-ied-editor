@@ -140,6 +140,32 @@ export class IedEditor extends LitElement {
     return { parent: instance, edits };
   }
 
+  getTemplateValue(ln, path) {
+    const template = this.doc?.querySelector(`:root > DataTypeTemplates`);
+    const lnTemplate = template.querySelector(
+      `:scope > LNodeType[id="${ln.getAttribute('lnType')}"]`,
+    );
+    let nestedInst = lnTemplate.querySelector(
+      `:scope > *[name="${path[0].name}"]`,
+    );
+
+    for (let i = 1; i < path.length; i += 1) {
+      const instType = nestedInst.getAttribute('type');
+      const instTemplate = template.querySelector(
+        `:scope > *[id="${instType}"]`,
+      );
+      nestedInst = instTemplate.querySelector(
+        `:scope > *[name="${path[i].name}"]`,
+      );
+    }
+
+    if (nestedInst.querySelector('Val')) {
+      return nestedInst.querySelector('Val').textContent;
+    }
+
+    return '';
+  }
+
   getInstanceDescription(target, host = null, path = []) {
     // if the instance is in a path, check if it has a description in the IED
     let instantiatedDesc = '';
@@ -351,8 +377,12 @@ export class IedEditor extends LitElement {
                       ln.namespaceURI,
                       'Val',
                     );
-                    // set the value to an empty string for user to edit
-                    val.textContent = '';
+                    val.textContent = this.getTemplateValue(
+                      ln,
+                      path.concat([
+                        { name: key.getAttribute('name'), tag: 'DAI' },
+                      ]),
+                    );
                     const { parent, edits } = this.instantiatePath(
                       path.concat([
                         { name: key.getAttribute('name'), tag: 'DAI' },
