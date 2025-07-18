@@ -405,45 +405,6 @@ export class IedEditor extends LitElement {
     path: { name: string; tag: string }[] = [],
     odd = false,
   ) {
-    if (Array.isArray(values)) {
-      return html`
-        <ul>
-          ${values.map(
-            value =>
-              html` <li>
-                ${this.renderValueInput(value, ln, path)}
-                <md-icon-button
-                  @click=${() => this.updateValue(value, ln, path)}
-                  ><md-icon>save</md-icon></md-icon-button
-                >
-                <md-icon-button
-                  @click=${() => {
-                    this.dispatchEvent(
-                      new CustomEvent('oscd-edit', {
-                        composed: true,
-                        bubbles: true,
-                        detail: {
-                          node: findInstanceToRemove(value),
-                        },
-                      }),
-                    );
-                    // select the current element to get the parent details
-                    const targetButton = this.shadowRoot
-                      ?.activeElement as HTMLButtonElement;
-                    // the parent details is 3 levels up
-                    const target = targetButton.parentElement?.parentElement
-                      ?.parentElement as HTMLDetailsElement;
-                    // close details
-                    target.removeAttribute('open');
-                  }}
-                  ><md-icon>delete</md-icon></md-icon-button
-                >
-              </li>`,
-          )}
-        </ul>
-      `;
-    }
-
     return dataModel
       .entries()
       .filter(
@@ -467,48 +428,117 @@ export class IedEditor extends LitElement {
               class="${classMap({
                 instantiated: values?.has(key),
                 uninitialized: value.size === 0 && !values?.get(key)?.length,
+                'hide-marker':
+                  Array.isArray(values?.get(key)) ||
+                  (value.size === 0 && !values?.get(key)?.length),
               })}"
             >
-              ${key.getAttribute('name')}
-              ${value.size === 0 && !values?.get(key)?.length
-                ? html`<md-icon-button
-                    @click=${() => {
-                      const val = key.ownerDocument.createElementNS(
-                        ln.namespaceURI,
-                        'Val',
-                      );
-                      val.textContent = this.getTemplateValue(
-                        ln,
-                        path.concat([
-                          { name: key.getAttribute('name') ?? '', tag: 'DAI' },
-                        ]),
-                      ) as string;
-                      const { parent, edits } = this.instantiatePath(
-                        path.concat([
-                          { name: key.getAttribute('name') ?? '', tag: 'DAI' },
-                        ]),
-                        ln,
-                      );
-                      this.dispatchEvent(
-                        new CustomEvent('oscd-edit', {
-                          composed: true,
-                          bubbles: true,
-                          detail: [
-                            ...edits,
+              <div class="model-key-container">
+                ${key.getAttribute('name')}
+                ${value.size === 0 && !values?.get(key)?.length
+                  ? html`<md-icon-button
+                      @click=${() => {
+                        const val = key.ownerDocument.createElementNS(
+                          ln.namespaceURI,
+                          'Val',
+                        );
+                        val.textContent = this.getTemplateValue(
+                          ln,
+                          path.concat([
                             {
-                              node: val,
-                              parent,
-                              reference: null,
+                              name: key.getAttribute('name') ?? '',
+                              tag: 'DAI',
                             },
-                          ],
-                        }),
-                      );
-                    }}
-                    ><md-icon>add</md-icon></md-icon-button
-                  >`
-                : nothing}
+                          ]),
+                        ) as string;
+                        const { parent, edits } = this.instantiatePath(
+                          path.concat([
+                            {
+                              name: key.getAttribute('name') ?? '',
+                              tag: 'DAI',
+                            },
+                          ]),
+                          ln,
+                        );
+                        this.dispatchEvent(
+                          new CustomEvent('oscd-edit', {
+                            composed: true,
+                            bubbles: true,
+                            detail: [
+                              ...edits,
+                              {
+                                node: val,
+                                parent,
+                                reference: null,
+                              },
+                            ],
+                          }),
+                        );
+                      }}
+                      ><md-icon>add</md-icon></md-icon-button
+                    >`
+                  : nothing}
+                ${Array.isArray(values?.get(key))
+                  ? html`<div class="render-value-container">
+                      ${this.renderValueInput(
+                        values.get(key)[0],
+                        ln,
+                        path.concat([
+                          {
+                            name: key.getAttribute('name') ?? '',
+                            tag: 'DAI',
+                          },
+                        ]),
+                      )}
+
+                      <div class="render-value-actions">
+                        <md-icon-button
+                          @click=${() =>
+                            this.updateValue(
+                              values.get(key)[0],
+                              ln,
+                              path.concat([
+                                {
+                                  name: key.getAttribute('name') ?? '',
+                                  tag: 'DAI',
+                                },
+                              ]),
+                            )}
+                          ><md-icon>save</md-icon></md-icon-button
+                        >
+                        <md-icon-button
+                          @click=${() => {
+                            this.dispatchEvent(
+                              new CustomEvent('oscd-edit', {
+                                composed: true,
+                                bubbles: true,
+                                detail: {
+                                  node: findInstanceToRemove(
+                                    values.get(key)[0],
+                                  ),
+                                },
+                              }),
+                            );
+                            // select the current element to get the parent details
+                            const targetButton = this.shadowRoot
+                              ?.activeElement as HTMLButtonElement;
+                            // find the parent details
+                            const target = targetButton.parentElement
+                              ?.parentElement?.parentElement
+                              ?.parentElement as HTMLDetailsElement;
+                            // close details
+                            target.removeAttribute('open');
+                          }}
+                          ><md-icon>delete</md-icon></md-icon-button
+                        >
+                      </div>
+                    </div> `
+                  : nothing}
+              </div>
+
               ${renderDataModelSpan(key)}
             </summary>
+
             ${this.getInstanceDescription(
               key,
               ln,
@@ -517,6 +547,7 @@ export class IedEditor extends LitElement {
                 tag: ['DO', 'SDO'].includes(key.tagName) ? 'DOI' : 'DAI',
               }),
             )}
+
             <div
               ${ref(div => {
                 if (!div?.parentElement?.hasAttribute('open')) return;
@@ -765,7 +796,7 @@ export class IedEditor extends LitElement {
       line-height: 1.5;
       background: var(--oscd-base2);
       color: var(--oscd-base01);
-      max-width: 90vw;
+      max-width: 100%;
     }
 
     details.odd {
@@ -775,10 +806,23 @@ export class IedEditor extends LitElement {
 
     summary {
       user-select: none;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      list-style: revert;
     }
 
     summary.instantiated {
       color: var(--oscd-primary);
+      align-items: baseline;
+    }
+
+    summary.instantiated.hide-marker {
+      padding: 0.5rem 0;
+    }
+
+    summary.instantiated > .model-key-container {
+      align-items: baseline;
     }
 
     summary.uninitialized {
@@ -786,12 +830,16 @@ export class IedEditor extends LitElement {
       list-style: none;
     }
 
-    summary.uninitialized > md-icon-button {
+    summary.uninitialized > .model-key-container > md-icon-button {
       pointer-events: auto;
     }
 
-    summary.uninitialized::marker,
-    summary.uninitialized::-webkit-details-marker {
+    summary.hide-marker {
+      list-style: none;
+    }
+
+    summary.hide-marker::marker,
+    summary.hide-marker::-webkit-details-marker {
       display: none;
     }
 
@@ -824,14 +872,26 @@ export class IedEditor extends LitElement {
       padding: 10px 0px 10px 0px;
     }
 
+    .model-key-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .render-value-container {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
     md-icon-button {
       vertical-align: sub;
     }
 
     .ied-name md-icon-button,
     .search-field md-icon-button,
-    details.odd > * > md-icon-button,
-    details.odd > * > * > md-icon-button {
+    details.odd > * > .model-key-container,
+    details.odd > * > * > .model-key-container {
       --md-icon-button-hover-state-layer-color: var(--oscd-base2);
       --md-icon-button-hover-icon-color: var(--oscd-base01);
     }
@@ -840,12 +900,12 @@ export class IedEditor extends LitElement {
       padding-bottom: var(--mbg-ied-editor-spacing);
     }
 
-    details.odd > * > mbg-val-input[bType='Quality'],
-    details.odd > * > * > mbg-val-input[bType='Quality'],
-    details.odd > * > mbg-val-input[bType='Currency'],
-    details.odd > * > * > mbg-val-input[bType='Currency'],
-    details.odd > * > mbg-val-input[bType='Enum'],
-    details.odd > * > * > mbg-val-input[bType='Enum'] {
+    details.odd > * > .model-key-container mbg-val-input[bType='Quality'],
+    details.odd > * > * > .model-key-container mbg-val-input[bType='Quality'],
+    details.odd > * > .model-key-container mbg-val-input[bType='Currency'],
+    details.odd > * > * > .model-key-container mbg-val-input[bType='Currency'],
+    details.odd > * > .model-key-container mbg-val-input[bType='Enum'],
+    details.odd > * > * > .model-key-container mbg-val-input[bType='Enum'] {
       --md-sys-color-surface-container-highest: var(--oscd-base2);
       --md-sys-color-surface-container: var(--oscd-base3);
       --md-sys-color-secondary-container: var(--oscd-base2);
