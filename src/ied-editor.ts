@@ -20,7 +20,11 @@ function searchSelectorIED(searchTerm: string) {
   :scope > AccessPoint > Server > LDevice > LN0[desc*="${searchTerm}"],
   :scope > AccessPoint > Server > LDevice > LN[lnClass*="${searchTerm}"],
   :scope > AccessPoint > Server > LDevice > LN[lnType*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN[desc*="${searchTerm}"]`;
+  :scope > AccessPoint > Server > LDevice > LN[desc*="${searchTerm}"],
+  :scope > AccessPoint > Server > LDevice > LN0 > *[desc*="${searchTerm}"],
+  :scope > AccessPoint > Server > LDevice > LN0 > * [desc*="${searchTerm}"],
+  :scope > AccessPoint > Server > LDevice > LN > *[desc*="${searchTerm}"],
+  :scope > AccessPoint > Server > LDevice > LN > * [desc*="${searchTerm}"]`;
 }
 
 function searchSelectorTemplates(searchTerm: string) {
@@ -50,6 +54,25 @@ function searchSelectorTemplates(searchTerm: string) {
   :root > DataTypeTemplates > DAType > BDA[desc*="${searchTerm}"],
   :root > DataTypeTemplates > EnumType[id*="${searchTerm}"],
   :root > DataTypeTemplates > EnumType[desc*="${searchTerm}"]`;
+}
+
+function getInitializedEltPath(element: Element): string {
+  let path = [`${element.getAttribute('name')}`];
+
+  // traverse through parent elements until an LN is found
+  let parentElt = element.parentElement as Element;
+  while (parentElt) {
+    if (parentElt.tagName === 'LN' || parentElt.tagName === 'LN0') {
+      path = [`${parentElt.tagName} ${identity(parentElt)}`].concat(path);
+      break;
+    }
+    path = [`${parentElt.getAttribute('name')}`].concat(path);
+    parentElt = parentElt.parentNode as Element;
+  }
+
+  const stringPath = path.join(' ');
+
+  return stringPath
 }
 
 function renderDataModelSpan(key: Element) {
@@ -620,6 +643,12 @@ export class IedEditor extends LitElement {
                     `${searchSelectorTemplates(this.searchTerm)}`,
                   ),
                 ].forEach(element => {
+                  if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
+                    const path = getInitializedEltPath(element);
+                    if (!newPathsToRender.includes(path)) {
+                      newPathsToRender.push(path);
+                    }
+                  }
                   cache.get(element)?.forEach((path: string) => {
                     if (!newPathsToRender.includes(path)) {
                       newPathsToRender.push(path);
