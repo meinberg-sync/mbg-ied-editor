@@ -72,7 +72,7 @@ function getInitializedEltPath(element: Element): string {
 
   const stringPath = path.join(' ');
 
-  return stringPath
+  return stringPath;
 }
 
 function renderDataModelSpan(key: Element) {
@@ -690,7 +690,15 @@ export class IedEditor extends LitElement {
                 )
                 .map(
                   ld => html`
-                    <details open>
+                    <details
+                      class="${classMap({
+                        'ldevice-details':
+                          Array.from(
+                            server.querySelectorAll(':scope > LDevice'),
+                          ).length > 1,
+                      })}"
+                      open
+                    >
                       <summary>
                         ${ld.getAttribute('inst')}
                         <span class="type">${ld.nodeName}</span>
@@ -819,8 +827,7 @@ export class IedEditor extends LitElement {
     }
 
     details {
-      padding-left: var(--mbg-ied-editor-spacing);
-      padding-right: var(--mbg-ied-editor-spacing);
+      padding: 0 var(--mbg-ied-editor-spacing);
       font-size: 20px;
       line-height: 1.5;
       background: var(--oscd-base2);
@@ -833,10 +840,27 @@ export class IedEditor extends LitElement {
       color: var(--oscd-base00);
     }
 
+    details.ldevice-details {
+      margin-bottom: var(--mbg-ied-editor-spacing);
+    }
+
+    details.ldevice-details[open] {
+      padding: var(--mbg-ied-editor-spacing);
+    }
+
+    details.ldevice-details:last-of-type {
+      margin-bottom: 0;
+    }
+
+    details:not(.ldevice-details):last-of-type[open] {
+      padding-bottom: var(--mbg-ied-editor-spacing);
+    }
+
     summary {
       user-select: none;
       display: flex;
       justify-content: space-between;
+      align-items: center;
       gap: 1rem;
       list-style: revert;
     }
@@ -898,7 +922,7 @@ export class IedEditor extends LitElement {
     ul {
       margin: 0px;
       list-style-type: none;
-      padding: 10px 0px 10px 0px;
+      padding: 10px 0px;
     }
 
     .model-key-container {
@@ -925,10 +949,6 @@ export class IedEditor extends LitElement {
       --md-icon-button-hover-icon-color: var(--oscd-base01);
     }
 
-    details:last-of-type[open] {
-      padding-bottom: var(--mbg-ied-editor-spacing);
-    }
-
     details.odd > * > .model-key-container mbg-val-input[bType='Quality'],
     details.odd > * > * > .model-key-container mbg-val-input[bType='Quality'],
     details.odd > * > .model-key-container mbg-val-input[bType='Currency'],
@@ -950,7 +970,7 @@ export class IedEditor extends LitElement {
 
     .desc {
       margin: 8px 0;
-      font-size: 18px;
+      font-size: 16px;
       font-style: italic;
     }
   `;
