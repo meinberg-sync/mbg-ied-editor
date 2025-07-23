@@ -56,6 +56,36 @@ function searchSelectorTemplates(searchTerm: string) {
   :root > DataTypeTemplates > EnumType[desc*="${searchTerm}"]`;
 }
 
+function handleModelExpand(e: Event) {
+  const button = e.target as HTMLButtonElement;
+  const buttonIcon = button.querySelector('md-icon') as HTMLSpanElement;
+
+  // toggle buttonIcon text
+  const expandContent = buttonIcon.textContent === 'expand_all';
+  buttonIcon.textContent = expandContent ? 'collapse_all' : 'expand_all';
+
+  // get parent details
+  let parent = button.parentElement;
+  while (parent && parent.tagName !== 'DETAILS') {
+    parent = parent.parentElement;
+  }
+
+  // open the parent details
+  if (parent && !parent.hasAttribute('open')) {
+    parent.toggleAttribute('open');
+  }
+
+  // toggle all child details
+  const details = parent?.querySelectorAll('details');
+  if (details) {
+    for (const detail of details) {
+      if (!detail.classList.contains('value-details')) {
+        detail.toggleAttribute('open', expandContent);
+      }
+    }
+  }
+}
+
 function getInitializedEltPath(element: Element): string {
   let path = [`${element.getAttribute('name')}`];
 
@@ -442,7 +472,12 @@ export class IedEditor extends LitElement {
       .map(
         ([key, value]: [Element, Set<Element>]) =>
           html` <details
-            class="${classMap({ odd })}"
+            class="${classMap({
+              odd,
+              'value-details':
+                Array.isArray(values?.get(key)) ||
+                (value.size === 0 && !values?.get(key)?.length),
+            })}"
             @toggle=${() => {
               this.requestUpdate();
             }}
@@ -559,7 +594,17 @@ export class IedEditor extends LitElement {
                   : nothing}
               </div>
 
-              ${renderDataModelSpan(key)}
+              <div class="model-actions">
+                ${renderDataModelSpan(key)}
+                ${['DO', 'SDO'].includes(key.tagName) ||
+                (['DA', 'BDA'].includes(key.tagName) && value.size > 0)
+                  ? html`
+                      <md-icon-button @click=${handleModelExpand}
+                        ><md-icon>expand_all</md-icon></md-icon-button
+                      >
+                    `
+                  : nothing}
+              </div>
             </summary>
 
             ${this.getInstanceDescription(
@@ -679,6 +724,11 @@ export class IedEditor extends LitElement {
             html` <details class="odd" open>
               <summary>
                 ${server.parentElement?.getAttribute('name')} Server
+                <div class="model-actions">
+                  <md-icon-button @click=${handleModelExpand}
+                    ><md-icon>expand_all</md-icon></md-icon-button
+                  >
+                </div>
               </summary>
               ${Array.from(server.querySelectorAll(':scope > LDevice'))
                 .filter(
@@ -701,7 +751,12 @@ export class IedEditor extends LitElement {
                     >
                       <summary>
                         ${ld.getAttribute('inst')}
-                        <span class="type">${ld.nodeName}</span>
+                        <div class="model-actions">
+                          <span class="type">${ld.nodeName}</span>
+                          <md-icon-button @click=${handleModelExpand}
+                            ><md-icon>expand_all</md-icon></md-icon-button
+                          >
+                        </div>
                       </summary>
                       ${this.getInstanceDescription(ld)}
                       ${Array.from(
@@ -721,12 +776,21 @@ export class IedEditor extends LitElement {
                                 ${ln.getAttribute('prefix')}${ln.getAttribute(
                                   'lnClass',
                                 )}${ln.getAttribute('inst')}
-                                <span class="type">
-                                  ${ln.nodeName}
-                                  <span class="subtype"
-                                    >(${ln.getAttribute('lnType')})</span
+                                <div class="model-actions">
+                                  <div>
+                                    <span class="type">
+                                      ${ln.nodeName}
+                                      <span class="subtype"
+                                        >(${ln.getAttribute('lnType')})</span
+                                      >
+                                    </span>
+                                  </div>
+                                  <md-icon-button @click=${handleModelExpand}
+                                    ><md-icon
+                                      >expand_all</md-icon
+                                    ></md-icon-button
                                   >
-                                </span>
+                                </div>
                               </summary>
                               ${this.getInstanceDescription(ln)}
                               ${this.renderLN(ln)}
@@ -903,7 +967,7 @@ export class IedEditor extends LitElement {
       font-weight: normal;
       font-size: 16px;
       vertical-align: middle;
-      float: right;
+      /* float: right; */
     }
 
     span.subtype {
@@ -914,7 +978,7 @@ export class IedEditor extends LitElement {
       font-weight: bold;
     }
 
-    details:hover > summary > span.type {
+    details:hover > summary span.type {
       opacity: 0.7;
       transition: opacity 0.2s cubic-bezier(0, 0.9, 0.45, 1);
     }
@@ -923,6 +987,12 @@ export class IedEditor extends LitElement {
       margin: 0px;
       list-style-type: none;
       padding: 10px 0px;
+    }
+
+    .model-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
     }
 
     .model-key-container {
@@ -943,6 +1013,7 @@ export class IedEditor extends LitElement {
 
     .ied-name md-icon-button,
     .search-field md-icon-button,
+    details.odd > summary .model-actions,
     details.odd > * > .model-key-container,
     details.odd > * > * > .model-key-container {
       --md-icon-button-hover-state-layer-color: var(--oscd-base2);
