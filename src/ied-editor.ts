@@ -12,6 +12,17 @@ import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/radio/radio.js';
 
+function debounce(callback: any, delay = 100) {
+  let timeout: any;
+
+  return (...args: any) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      callback(...args);
+    }, delay);
+  };
+}
+
 function handleModelExpand(e: Event) {
   const button = e.target as HTMLButtonElement;
   const buttonIcon = button.querySelector('md-icon') as HTMLSpanElement;
@@ -181,9 +192,9 @@ export class IedEditor extends LitElement {
 
   @property({ type: Number }) searchMode = 0;
 
-  pathsToRender: string[] = [];
+  @property({ type: Array }) pathsToRender: string[] = [];
 
-  searchSelectorIED() {
+  private searchSelectorIED() {
     if (!this.ied) return [];
 
     const lowerCaseTerm = this.searchTerm.toLowerCase();
@@ -198,7 +209,7 @@ export class IedEditor extends LitElement {
     );
   }
 
-  searchSelectorTemplates() {
+  private searchSelectorTemplates() {
     if (!this.doc) return [];
 
     const lowerCaseTerm = this.searchTerm.toLowerCase();
@@ -220,6 +231,49 @@ export class IedEditor extends LitElement {
         elt.getAttribute(attr)?.toLowerCase().includes(lowerCaseTerm),
       ),
     );
+  }
+
+  private performSearch(searchTerm: string) {
+    this.searchTerm = searchTerm;
+    const newPathsToRender: string[] = [];
+    if (!this.ied || !this.doc) return;
+
+    [...this.searchSelectorIED(), ...this.searchSelectorTemplates()].forEach(
+      element => {
+        if (element.tagName === 'LDevice') {
+          const path = identity(element) as string;
+          if (!newPathsToRender.includes(path)) {
+            newPathsToRender.push(path);
+          }
+        } else if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
+          const path = getInitializedEltPath(element);
+          if (!newPathsToRender.includes(path)) {
+            newPathsToRender.push(path);
+          }
+        }
+        cache.get(element)?.forEach((path: string) => {
+          if (!newPathsToRender.includes(path)) {
+            newPathsToRender.push(path);
+          }
+        });
+      },
+    );
+
+    this.pathsToRender = newPathsToRender;
+    this.requestUpdate();
+  }
+
+  private debounceSearch = debounce((term: string) => this.performSearch(term));
+
+  private resetSearch() {
+    this.searchTerm = '';
+
+    const searchInput = this.shadowRoot?.querySelector(
+      '.search-input',
+    ) as HTMLInputElement;
+    searchInput.value = '';
+
+    this.requestUpdate();
   }
 
   instantiatePath(path: { name: string; tag: string }[], ln: Element) {
@@ -644,25 +698,6 @@ export class IedEditor extends LitElement {
     return this.renderDataModel(dataModel, values, ln);
   }
 
-  handleRadioChange(e: Event) {
-    const selectedRadio = e.target as HTMLInputElement;
-    if (selectedRadio) {
-      const extensionType = selectedRadio.getAttribute('value') as string;
-      this.searchMode = parseInt(extensionType, 10);
-    }
-  }
-
-  resetSearch() {
-    this.searchTerm = '';
-
-    const searchInput = this.shadowRoot?.querySelector(
-      '.search-input',
-    ) as HTMLInputElement;
-    searchInput.value = '';
-
-    this.requestUpdate();
-  }
-
   render() {
     return html`
       <main>
@@ -672,32 +707,8 @@ export class IedEditor extends LitElement {
               class="search-input"
               label="Search"
               @input=${(e: Event) => {
-                this.searchTerm = (e.target as HTMLInputElement)?.value;
-                const newPathsToRender: string[] = [];
-                if (!this.ied || !this.doc) return;
-                [
-                  ...this.searchSelectorIED(),
-                  ...this.searchSelectorTemplates(),
-                ].forEach(element => {
-                  if (element.tagName === 'LDevice') {
-                    const path = identity(element) as string;
-                    if (!newPathsToRender.includes(path)) {
-                      newPathsToRender.push(path);
-                    }
-                  } else if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
-                    const path = getInitializedEltPath(element);
-                    if (!newPathsToRender.includes(path)) {
-                      newPathsToRender.push(path);
-                    }
-                  }
-                  cache.get(element)?.forEach((path: string) => {
-                    if (!newPathsToRender.includes(path)) {
-                      newPathsToRender.push(path);
-                    }
-                  });
-                });
-                this.pathsToRender = newPathsToRender;
-                this.requestUpdate();
+                const searchInput = (e.target as HTMLInputElement)?.value;
+                this.debounceSearch(searchInput);
               }}
             >
               <md-icon slot="leading-icon">search</md-icon>
