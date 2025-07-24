@@ -12,50 +12,6 @@ import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/radio/radio.js';
 
-function searchSelectorIED(searchTerm: string) {
-  return `:scope > AccessPoint > Server > LDevice[inst*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice[desc*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN0[lnClass*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN0[lnType*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN0[desc*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN[lnClass*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN[lnType*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN[desc*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN0 > *[desc*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN0 > * [desc*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN > *[desc*="${searchTerm}"],
-  :scope > AccessPoint > Server > LDevice > LN > * [desc*="${searchTerm}"]`;
-}
-
-function searchSelectorTemplates(searchTerm: string) {
-  return `:root > DataTypeTemplates > LNodeType[id*="${searchTerm}"],
-  :root > DataTypeTemplates > LNodeType[lnClass*="${searchTerm}"],
-  :root > DataTypeTemplates > LNodeType[desc*="${searchTerm}"],
-  :root > DataTypeTemplates > LNodeType > DO[name*="${searchTerm}"],
-  :root > DataTypeTemplates > LNodeType > DO[type*="${searchTerm}"],
-  :root > DataTypeTemplates > LNodeType > DO[desc*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType[id*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType[cdc*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType[desc*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > SDO[name*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > SDO[type*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > SDO[desc*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > DA[name*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > DA[fc*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > DA[bType*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > DA[type*="${searchTerm}"],
-  :root > DataTypeTemplates > DOType > DA[desc*="${searchTerm}"],
-  :root > DataTypeTemplates > DAType[id*="${searchTerm}"],
-  :root > DataTypeTemplates > DAType[desc*="${searchTerm}"],
-  :root > DataTypeTemplates > DAType > BDA[name*="${searchTerm}"],
-  :root > DataTypeTemplates > DAType > BDA[fc*="${searchTerm}"],
-  :root > DataTypeTemplates > DAType > BDA[bType*="${searchTerm}"],
-  :root > DataTypeTemplates > DAType > BDA[type*="${searchTerm}"],
-  :root > DataTypeTemplates > DAType > BDA[desc*="${searchTerm}"],
-  :root > DataTypeTemplates > EnumType[id*="${searchTerm}"],
-  :root > DataTypeTemplates > EnumType[desc*="${searchTerm}"]`;
-}
-
 function handleModelExpand(e: Event) {
   const button = e.target as HTMLButtonElement;
   const buttonIcon = button.querySelector('md-icon') as HTMLSpanElement;
@@ -226,6 +182,45 @@ export class IedEditor extends LitElement {
   @property({ type: Number }) searchMode = 0;
 
   pathsToRender: string[] = [];
+
+  searchSelectorIED() {
+    if (!this.ied) return [];
+
+    const lowerCaseTerm = this.searchTerm.toLowerCase();
+    const attributes = ['inst', 'desc', 'lnClass', 'lnType'];
+
+    return Array.from(
+      this.ied.querySelectorAll(':scope > AccessPoint > Server *'),
+    ).filter(elt =>
+      attributes.some(attr =>
+        elt.getAttribute(attr)?.toLowerCase().includes(lowerCaseTerm),
+      ),
+    );
+  }
+
+  searchSelectorTemplates() {
+    if (!this.doc) return [];
+
+    const lowerCaseTerm = this.searchTerm.toLowerCase();
+    const attributes = [
+      'id',
+      'lnClass',
+      'desc',
+      'name',
+      'type',
+      'cdc',
+      'fc',
+      'bType',
+    ];
+
+    return Array.from(
+      this.doc.querySelectorAll(':root > DataTypeTemplates *'),
+    ).filter(elt =>
+      attributes.some(attr =>
+        elt.getAttribute(attr)?.toLowerCase().includes(lowerCaseTerm),
+      ),
+    );
+  }
 
   instantiatePath(path: { name: string; tag: string }[], ln: Element) {
     if (path.length === 0) {
@@ -681,14 +676,15 @@ export class IedEditor extends LitElement {
                 const newPathsToRender: string[] = [];
                 if (!this.ied || !this.doc) return;
                 [
-                  ...this.ied.querySelectorAll(
-                    `${searchSelectorIED(this.searchTerm)}`,
-                  ),
-                  ...this.doc.querySelectorAll(
-                    `${searchSelectorTemplates(this.searchTerm)}`,
-                  ),
+                  ...this.searchSelectorIED(),
+                  ...this.searchSelectorTemplates(),
                 ].forEach(element => {
-                  if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
+                  if (element.tagName === 'LDevice') {
+                    const path = identity(element) as string;
+                    if (!newPathsToRender.includes(path)) {
+                      newPathsToRender.push(path);
+                    }
+                  } else if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
                     const path = getInitializedEltPath(element);
                     if (!newPathsToRender.includes(path)) {
                       newPathsToRender.push(path);
