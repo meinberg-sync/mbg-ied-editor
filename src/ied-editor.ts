@@ -276,7 +276,7 @@ export class IedEditor extends LitElement {
     this.requestUpdate();
   }
 
-  instantiatePath(path: { name: string; tag: string }[], ln: Element) {
+  private instantiatePath(path: { name: string; tag: string }[], ln: Element) {
     if (path.length === 0) {
       throw new Error('Empty path');
     }
@@ -305,7 +305,7 @@ export class IedEditor extends LitElement {
     return { parent: instance, edits };
   }
 
-  getTemplateValue(ln: Element, path: { name: string; tag: string }[]) {
+  private getTemplateValue(ln: Element, path: { name: string; tag: string }[]) {
     const template = this.doc?.querySelector(`:root > DataTypeTemplates`);
     const lnTemplate = template?.querySelector(
       `:scope > LNodeType[id="${ln.getAttribute('lnType')}"]`,
@@ -331,7 +331,7 @@ export class IedEditor extends LitElement {
     return '';
   }
 
-  getInstanceDescription(
+  private getInstanceDescription(
     target: Element,
     host?: Element,
     path: { name: string; tag: string }[] = [],
@@ -382,7 +382,7 @@ export class IedEditor extends LitElement {
     return nothing;
   }
 
-  updateValue(
+  private updateValue(
     value: Element,
     ln: Element,
     path: { name: string; tag: string }[],
@@ -418,7 +418,7 @@ export class IedEditor extends LitElement {
     );
   }
 
-  renderValueInput(
+  private renderValueInput(
     value: Element,
     ln: Element,
     path: { name: string; tag: string }[],
@@ -500,7 +500,7 @@ export class IedEditor extends LitElement {
     ></mbg-val-input>`;
   }
 
-  renderDataModel(
+  private renderDataModel(
     dataModel: any,
     values: Map<Element, any>,
     ln: Element,
@@ -688,7 +688,7 @@ export class IedEditor extends LitElement {
       );
   }
 
-  renderLN(ln: Element) {
+  private renderLN(ln: Element) {
     const lnType = this.doc?.querySelector(
       `:root > DataTypeTemplates > LNodeType[id="${ln.getAttribute('lnType')}"]`,
     ) as Element;
@@ -974,7 +974,6 @@ export class IedEditor extends LitElement {
       font-weight: normal;
       font-size: 16px;
       vertical-align: middle;
-      /* float: right; */
     }
 
     span.subtype {
