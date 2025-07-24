@@ -23135,7 +23135,6 @@ See www.iec.ch/CCv1 for copyright details
       font-weight: normal;
       font-size: 16px;
       vertical-align: middle;
-      /* float: right; */
     }
 
     span.subtype {
