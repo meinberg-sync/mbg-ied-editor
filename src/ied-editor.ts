@@ -4,6 +4,8 @@ import { classMap } from 'lit/directives/class-map.js';
 import { property } from 'lit/decorators.js';
 
 import { identity } from '@openenergytools/scl-lib';
+import { Insert, Remove, SetTextContent } from '@omicronenergy/oscd-api';
+import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 
 import 'mbg-val-input/mbg-val-input.js';
 
@@ -293,11 +295,13 @@ export class IedEditor extends LitElement {
           path[i].tag,
         ) as Element;
         nextInstance.setAttribute('name', path[i].name);
-        edits.push({
-          node: nextInstance,
+
+        const newEdit: Insert = {
           parent: instance,
+          node: nextInstance,
           reference: null,
-        });
+        };
+        edits.push(newEdit);
       }
       instance = nextInstance;
     }
@@ -399,23 +403,15 @@ export class IedEditor extends LitElement {
       `${elementID}`,
     ) as HTMLInputElement;
 
-    // eslint-disable-next-line no-param-reassign
-    value.textContent = input.value;
-    const { parent, edits } = this.instantiatePath(path, ln);
-    this.dispatchEvent(
-      new CustomEvent('oscd-edit', {
-        composed: true,
-        bubbles: true,
-        detail: [
-          ...edits,
-          {
-            node: value,
-            parent,
-            reference: null,
-          },
-        ],
-      }),
-    );
+    const { edits } = this.instantiatePath(path, ln);
+    const editVal: SetTextContent = {
+      element: value,
+      textContent: input.value,
+    };
+    this.dispatchEvent(newEditEventV2(editVal));
+    for (const edit of edits) {
+      this.dispatchEvent(newEditEventV2(edit));
+    }
   }
 
   private renderValueInput(
@@ -567,20 +563,15 @@ export class IedEditor extends LitElement {
                           ]),
                           ln,
                         );
-                        this.dispatchEvent(
-                          new CustomEvent('oscd-edit', {
-                            composed: true,
-                            bubbles: true,
-                            detail: [
-                              ...edits,
-                              {
-                                node: val,
-                                parent,
-                                reference: null,
-                              },
-                            ],
-                          }),
-                        );
+                        const newVal: Insert = {
+                          parent,
+                          node: val,
+                          reference: null,
+                        };
+                        this.dispatchEvent(newEditEventV2(newVal));
+                        for (const edit of edits) {
+                          this.dispatchEvent(newEditEventV2(edit));
+                        }
                       }}
                       ><md-icon>add</md-icon></md-icon-button
                     >`
@@ -615,26 +606,10 @@ export class IedEditor extends LitElement {
                         >
                         <md-icon-button
                           @click=${() => {
-                            this.dispatchEvent(
-                              new CustomEvent('oscd-edit', {
-                                composed: true,
-                                bubbles: true,
-                                detail: {
-                                  node: findInstanceToRemove(
-                                    values.get(key)[0],
-                                  ),
-                                },
-                              }),
-                            );
-                            // select the current element to get the parent details
-                            const targetButton = this.shadowRoot
-                              ?.activeElement as HTMLButtonElement;
-                            // find the parent details
-                            const target = targetButton.parentElement
-                              ?.parentElement?.parentElement
-                              ?.parentElement as HTMLDetailsElement;
-                            // close details
-                            target.removeAttribute('open');
+                            const removeVal: Remove = {
+                              node: findInstanceToRemove(values.get(key)[0]),
+                            };
+                            this.dispatchEvent(newEditEventV2(removeVal));
                           }}
                           ><md-icon>delete</md-icon></md-icon-button
                         >
