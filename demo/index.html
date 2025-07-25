@@ -19,10 +19,10 @@ for (const [name, value] of params) {
 
 editor.plugins = plugins;
 
-const sclText = await fetch('sample.icd').then(r => r.text())
-editor.docs['sample.icd'] =
+const sclText = await fetch('sample-ieds.scd').then(r => r.text())
+editor.docs['sample-ieds.scd'] =
   new DOMParser().parseFromString(sclText, 'application/xml');
-editor.docName = 'sample.icd';
+editor.docName = 'sample-ieds.scd';
 </script>
 
 <script>
