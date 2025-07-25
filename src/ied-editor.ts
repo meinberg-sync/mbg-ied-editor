@@ -412,6 +412,7 @@ export class IedEditor extends LitElement {
     for (const edit of edits) {
       this.dispatchEvent(newEditEventV2(edit));
     }
+    this.requestUpdate();
   }
 
   private renderValueInput(
@@ -572,6 +573,7 @@ export class IedEditor extends LitElement {
                         for (const edit of edits) {
                           this.dispatchEvent(newEditEventV2(edit));
                         }
+                        this.requestUpdate();
                       }}
                       ><md-icon>add</md-icon></md-icon-button
                     >`
@@ -610,6 +612,7 @@ export class IedEditor extends LitElement {
                               node: findInstanceToRemove(values.get(key)[0]),
                             };
                             this.dispatchEvent(newEditEventV2(removeVal));
+                            this.requestUpdate();
                           }}
                           ><md-icon>delete</md-icon></md-icon-button
                         >
