@@ -408,10 +408,7 @@ export class IedEditor extends LitElement {
       element: value,
       textContent: input.value,
     };
-    this.dispatchEvent(newEditEventV2(editVal));
-    for (const edit of edits) {
-      this.dispatchEvent(newEditEventV2(edit));
-    }
+    this.dispatchEvent(newEditEventV2([...edits, editVal]));
     this.requestUpdate();
   }
 
@@ -569,10 +566,7 @@ export class IedEditor extends LitElement {
                           node: val,
                           reference: null,
                         };
-                        this.dispatchEvent(newEditEventV2(newVal));
-                        for (const edit of edits) {
-                          this.dispatchEvent(newEditEventV2(edit));
-                        }
+                        this.dispatchEvent(newEditEventV2([...edits, newVal]));
                         this.requestUpdate();
                       }}
                       ><md-icon>add</md-icon></md-icon-button
