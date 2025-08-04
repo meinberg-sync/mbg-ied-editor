@@ -2,6 +2,8 @@ import { LitElement, html, css } from 'lit';
 import { property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 
+import { SetAttributes } from '@omicronenergy/oscd-api';
+import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 import { updateIED } from '@openenergytools/scl-lib';
 
 import { IedEditor } from './ied-editor.js';
@@ -72,17 +74,26 @@ export default class MbgIedEditor extends LitElement {
 
   enterIEDName() {
     if (this.iedName !== '' && this.ied) {
-      // update the IED with the new name
-      this.dispatchEvent(
-        new CustomEvent('oscd-edit', {
-          composed: true,
-          bubbles: true,
-          detail: updateIED({
-            element: this.ied,
-            attributes: { name: this.iedName },
+      const newNameAttribute: SetAttributes = {
+        element: this.ied,
+        attributes: { name: this.iedName },
+      };
+
+      if (document.body.querySelector('oscd-shell') !== null) {
+        // use oscd-api to update the IED's name
+        this.dispatchEvent(newEditEventV2(newNameAttribute));
+      } else {
+        // ensure backwards compatibility
+        this.dispatchEvent(
+          new CustomEvent('oscd-edit', {
+            composed: true,
+            bubbles: true,
+            detail: updateIED(newNameAttribute as any),
           }),
-        }),
-      );
+        );
+      }
+
+      this.requestUpdate();
 
       // reset selector
       const selector = this.shadowRoot?.querySelector(
@@ -96,8 +107,6 @@ export default class MbgIedEditor extends LitElement {
         '#edit-name-button',
       ) as HTMLButtonElement;
       button.classList.toggle('show');
-
-      this.requestUpdate();
     }
   }
 
