@@ -13,6 +13,7 @@ import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/radio/radio.js';
+import '@material/web/progress/circular-progress.js';
 
 function debounce(callback: any, delay = 100) {
   let timeout: any;
@@ -192,9 +193,24 @@ export class IedEditor extends LitElement {
 
   @property({ type: Number }) editCount = 0;
 
-  @property({ type: Number }) searchMode = 0;
-
   @property({ type: Array }) pathsToRender: string[] = [];
+
+  @property({ type: Boolean }) loadingIED = false;
+
+  protected updated(changed: Map<string, unknown>) {
+    super.updated?.(changed);
+
+    if (changed.has('doc') || changed.has('ied')) {
+      this.pathsToRender = [];
+      this.searchTerm = '';
+      this.loadingIED = true;
+
+      setTimeout(() => {
+        this.loadingIED = false;
+        this.requestUpdate();
+      }, 1000);
+    }
+  }
 
   private searchSelectorIED() {
     if (!this.ied) return [];
@@ -671,6 +687,14 @@ export class IedEditor extends LitElement {
   }
 
   render() {
+    if (this.loadingIED) {
+      return html` <main>
+        <div class="loading-container">
+          <md-circular-progress four-color indeterminate></md-circular-progress>
+        </div>
+      </main>`;
+    }
+
     return html`
       <main>
         <div class="search-container">
@@ -889,6 +913,7 @@ export class IedEditor extends LitElement {
 
     details.ldevice-details[open] {
       padding: var(--mbg-ied-editor-spacing);
+      padding-top: 0;
     }
 
     details.ldevice-details:last-of-type {
