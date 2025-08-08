@@ -96,7 +96,7 @@ function findInstanceToRemove(element: Element) {
     child => child.tagName === element.tagName,
   );
 
-  if (siblings.length > 1 || !['DAI', 'DOI'].includes(parent.tagName)) {
+  if (siblings.length > 1 || !['DOI', 'SDI', 'DAI'].includes(parent.tagName)) {
     return element;
   }
 
@@ -104,8 +104,7 @@ function findInstanceToRemove(element: Element) {
 }
 
 function getValues(instance: Element, dataModel: any) {
-  // instance -> DOI* -> DAI* -> Val
-  // match DOI name w/ DO name (same with DAI and DA)
+  // instance -> DOI -> SDI* -> DAI -> Val
   const childVals = Array.from(instance.children).filter(
     child => child.tagName === 'Val',
   );
@@ -114,7 +113,7 @@ function getValues(instance: Element, dataModel: any) {
   }
 
   const children = Array.from(instance.children).filter(child =>
-    ['DOI', 'DAI'].includes(child.tagName),
+    ['DOI', 'SDI', 'DAI'].includes(child.tagName),
   );
 
   const childNames = children.map(child => child.getAttribute('name'));
@@ -180,6 +179,18 @@ function getDataModel(dataType: Element, path: string[]) {
   }
 
   return dataModel;
+}
+
+function setTag(key: Element) {
+  let tag = 'DAI';
+
+  if (key.tagName === 'DO') {
+    tag = 'DOI';
+  } else if (key.tagName === 'SDO' || key.getAttribute('bType') === 'Struct') {
+    tag = 'SDI';
+  }
+
+  return tag;
 }
 
 export class IedEditor extends LitElement {
@@ -402,6 +413,31 @@ export class IedEditor extends LitElement {
     return nothing;
   }
 
+  private getMostNestedElt(
+    path: { name: string; tag: string }[],
+    lnType: string,
+  ): Element | null {
+    let parentName = path[0].name;
+    let parentElt = this.doc?.querySelector(
+      `:root > DataTypeTemplates > LNodeType[id="${lnType}"] > DO[name="${parentName}"]`,
+    );
+    let parentType = parentElt?.getAttribute('type') as string;
+
+    let i = 1;
+    for (; i < path.length; i += 1) {
+      parentName = path[i].name;
+      parentElt = this.doc?.querySelector(
+        `:root > DataTypeTemplates > *[id="${parentType}"] > *[name="${parentName}"]`,
+      );
+
+      if (i === path.length - 1) break;
+
+      parentType = parentElt?.getAttribute('type') as string;
+    }
+
+    return parentElt ?? null;
+  }
+
   private updateValue(
     value: Element,
     ln: Element,
@@ -444,39 +480,7 @@ export class IedEditor extends LitElement {
       elementID += `-${path[i].name}`;
     }
 
-    // iterate through the path to get the most nested parent DO
-    let i = 0;
-    let parentDOName = '';
-    let parentDOType = '';
-    for (; i < path.length - 1; i += 1) {
-      if (path[i].tag === 'DAI') {
-        break;
-      }
-      parentDOName = path[i].name;
-      parentDOType = this.doc
-        ?.querySelector(
-          `:root > DataTypeTemplates > LNodeType[id="${lnType}"] > DO[name="${parentDOName}"]`,
-        )
-        ?.getAttribute('type') as string;
-    }
-
-    // get the first DA instance from the parent DO
-    let parentDAName = path[i].name;
-    let parentDA = this.doc?.querySelector(
-      `:root > DataTypeTemplates > DOType[id="${parentDOType}"] > DA[name="${parentDAName}"]`,
-    );
-    i += 1;
-
-    // iterate through the path to get the most nested parent DA
-    for (; i < path.length; i += 1) {
-      const parentDAType = parentDA?.getAttribute('type');
-      parentDAName = path[i].name;
-      parentDA = this.doc?.querySelector(
-        `:root > DataTypeTemplates > DAType[id="${parentDAType}"] > BDA[name="${parentDAName}"]`,
-      );
-    }
-
-    // get the type of the most nested parent DA
+    const parentDA = this.getMostNestedElt(path, lnType as string);
     const bType = parentDA?.getAttribute('bType');
 
     // if it is an enum type, get the ordinal numbers and string labels
@@ -649,7 +653,7 @@ export class IedEditor extends LitElement {
               ln,
               path.concat({
                 name: key.getAttribute('name') ?? '',
-                tag: ['DO', 'SDO'].includes(key.tagName) ? 'DOI' : 'DAI',
+                tag: setTag(key),
               }),
             )}
 
@@ -664,7 +668,7 @@ export class IedEditor extends LitElement {
                     ln,
                     path.concat({
                       name: key.getAttribute('name') ?? '',
-                      tag: ['DO', 'SDO'].includes(key.tagName) ? 'DOI' : 'DAI',
+                      tag: setTag(key),
                     }),
                     !odd,
                   ),
