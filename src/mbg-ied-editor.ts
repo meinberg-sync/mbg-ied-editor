@@ -27,6 +27,8 @@ export default class MbgIedEditor extends LitElement {
 
   @property({ type: Object }) ied?: Element;
 
+  @property({ type: String }) docName? = '';
+
   @property({ type: Number }) editCount = 0;
 
   @property({ type: String }) iedName = '';
@@ -34,17 +36,23 @@ export default class MbgIedEditor extends LitElement {
   protected updated(changed: Map<string, unknown>) {
     super.updated?.(changed);
 
-    if (changed.has('doc')) {
+    if (changed.has('doc') || changed.has('docName')) {
       // reset the selector
       const selector = this.shadowRoot?.querySelector(
         '#ied-selector',
       ) as HTMLSelectElement;
       selector.value = '';
-      this.updateEditor({ target: selector } as unknown as Event);
+      this.updateEditorDisplay({ target: selector } as unknown as Event);
     }
   }
 
-  updateEditor(e: Event) {
+  updateIedEditor() {
+    // trigger update to IedEditor
+    const iedEditor = this.shadowRoot?.querySelector('ied-editor') as IedEditor;
+    iedEditor?.requestUpdate();
+  }
+
+  updateEditorDisplay(e: Event) {
     if (!e.target) return;
 
     const iedSelector = e.target as HTMLSelectElement;
@@ -66,6 +74,7 @@ export default class MbgIedEditor extends LitElement {
     ) as Element;
 
     this.requestUpdate();
+    this.updateIedEditor();
   }
 
   showIedNameInput() {
@@ -112,13 +121,12 @@ export default class MbgIedEditor extends LitElement {
         );
       }
 
-      this.requestUpdate();
-
       // reset selector
       const selector = this.shadowRoot?.querySelector(
         '#ied-selector',
       ) as HTMLSelectElement;
       selector.value = '';
+      this.updateEditorDisplay({ target: selector } as unknown as Event);
 
       // hide text field and button
       this.showIedNameInput();
@@ -146,7 +154,7 @@ export default class MbgIedEditor extends LitElement {
             id="ied-selector"
             label="Select IED"
             aria-labelledby="group-title"
-            @change=${this.updateEditor}
+            @change=${this.updateEditorDisplay}
           >
             <md-select-option value="" class="placeholder">
               <div slot="headline"></div>
