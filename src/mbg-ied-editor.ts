@@ -25,9 +25,24 @@ function meinbergFirst(a: string, b: string) {
 export default class MbgIedEditor extends LitElement {
   @property({ type: Object }) doc?: Document;
 
+  @property({ type: Object }) ied?: Element;
+
   @property({ type: Number }) editCount = 0;
 
-  iedName = '';
+  @property({ type: String }) iedName = '';
+
+  protected updated(changed: Map<string, unknown>) {
+    super.updated?.(changed);
+
+    if (changed.has('doc')) {
+      // reset the selector
+      const selector = this.shadowRoot?.querySelector(
+        '#ied-selector',
+      ) as HTMLSelectElement;
+      selector.value = '';
+      this.updateEditor({ target: selector } as unknown as Event);
+    }
+  }
 
   updateEditor(e: Event) {
     if (!e.target) return;
@@ -45,6 +60,10 @@ export default class MbgIedEditor extends LitElement {
       '.ied-name',
     ) as HTMLInputElement;
     iedNameInput.value = iedSelector.value;
+
+    this.ied = this.doc?.querySelector(
+      `IED[name="${iedSelector.value}"]`,
+    ) as Element;
 
     this.requestUpdate();
   }
@@ -108,14 +127,6 @@ export default class MbgIedEditor extends LitElement {
       ) as HTMLButtonElement;
       button.classList.toggle('show');
     }
-  }
-
-  get ied() {
-    const selector = this.shadowRoot?.querySelector(
-      '#ied-selector',
-    ) as HTMLSelectElement;
-    if (!selector) return null;
-    return this.doc?.querySelector(`IED[name="${selector.value}"]`);
   }
 
   render() {

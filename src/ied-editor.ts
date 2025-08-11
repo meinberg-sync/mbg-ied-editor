@@ -198,8 +198,6 @@ export class IedEditor extends LitElement {
 
   @property({ type: Object }) ied?: Element;
 
-  @property({ type: String }) iedName = '';
-
   @property({ type: String }) searchTerm = '';
 
   @property({ type: Number }) editCount = 0;
@@ -684,6 +682,8 @@ export class IedEditor extends LitElement {
     const lnType = this.doc?.querySelector(
       `:root > DataTypeTemplates > LNodeType[id="${ln.getAttribute('lnType')}"]`,
     ) as Element;
+    if (!lnType) return nothing;
+
     const path = [`${ln.tagName} ${identity(ln)}`];
     const dataModel = getDataModel(lnType, path);
     const values = getValues(ln, dataModel) as Map<Element, any>;
