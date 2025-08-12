@@ -46,13 +46,13 @@ export default class MbgIedEditor extends LitElement {
     }
   }
 
-  updateIedEditor() {
+  private updateIedEditor() {
     // trigger update to IedEditor
     const iedEditor = this.shadowRoot?.querySelector('ied-editor') as IedEditor;
     iedEditor?.requestUpdate();
   }
 
-  updateEditorDisplay(e: Event) {
+  private updateEditorDisplay(e: Event) {
     if (!e.target) return;
 
     const iedSelector = e.target as HTMLSelectElement;
@@ -77,7 +77,7 @@ export default class MbgIedEditor extends LitElement {
     this.updateIedEditor();
   }
 
-  showIedNameInput() {
+  private showIedNameInput() {
     const iedNameContainer = this.shadowRoot?.querySelector(
       '#ied-name-input',
     ) as HTMLDivElement;
@@ -100,7 +100,7 @@ export default class MbgIedEditor extends LitElement {
     }
   }
 
-  enterIEDName() {
+  private enterIEDName() {
     if (this.iedName !== '' && this.ied) {
       const newNameAttribute: SetAttributes = {
         element: this.ied,
