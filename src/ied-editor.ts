@@ -198,6 +198,8 @@ export class IedEditor extends LitElement {
 
   @property({ type: Object }) ied?: Element;
 
+  @property({ type: String }) docName? = '';
+
   @property({ type: String }) searchTerm = '';
 
   @property({ type: Number }) editCount = 0;
@@ -209,7 +211,7 @@ export class IedEditor extends LitElement {
   protected updated(changed: Map<string, unknown>) {
     super.updated?.(changed);
 
-    if (changed.has('doc') || changed.has('ied')) {
+    if (changed.has('doc') || changed.has('docName') || changed.has('ied')) {
       this.pathsToRender = [];
       this.searchTerm = '';
       this.loadingIED = true;

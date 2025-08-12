@@ -222,6 +222,7 @@ export default class MbgIedEditor extends LitElement {
         ${this.ied &&
         html`<ied-editor
           .doc=${this.doc}
+          .docName=${this.docName}
           .ied=${this.ied}
           .editCount=${this.editCount}
         ></ied-editor>`}
