@@ -109,7 +109,7 @@ export default class MbgIedEditor extends LitElement {
 
       if (document.body.querySelector('oscd-shell') !== null) {
         // use oscd-api to update the IED's name
-        this.dispatchEvent(newEditEventV2(newNameAttribute));
+        this.dispatchEvent(newEditEventV2(updateIED(newNameAttribute as any)));
       } else {
         // ensure backwards compatibility
         this.dispatchEvent(
