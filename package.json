@@ -23,7 +23,7 @@
     "@omicronenergy/oscd-shell": "^0.0.8",
     "@openenergytools/scl-lib": "^1.4.0",
     "lit": "^3.1.4",
-    "mbg-val-input": "^0.4.2"
+    "mbg-val-input": "^0.4.3"
   },
   "devDependencies": {
     "@custom-elements-manifest/analyzer": "^0.10.3",

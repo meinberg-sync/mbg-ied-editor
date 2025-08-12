@@ -483,6 +483,14 @@ export class IedEditor extends LitElement {
     const parentDA = this.getMostNestedElt(path, lnType as string);
     const bType = parentDA?.getAttribute('bType');
 
+    // check if the value is read-only
+    const valKind = parentDA?.getAttribute('valKind') ?? '';
+    const valImport = parentDA?.getAttribute('valImport') ?? '';
+    let readOnly = false;
+    if (valKind === 'RO' && valImport !== 'true') {
+      readOnly = true;
+    }
+
     // if it is an enum type, get the ordinal numbers and string labels
     if (bType === 'Enum') {
       const enumType = parentDA?.getAttribute('type');
@@ -504,6 +512,7 @@ export class IedEditor extends LitElement {
         .enumOrdinals=${JSON.stringify(enumOrdinals)}
         .enumLabels=${JSON.stringify(enumLabels)}
         default="${value.textContent as string}"
+        ?readOnly="${readOnly}"
       ></mbg-val-input>`;
     }
 
@@ -511,6 +520,7 @@ export class IedEditor extends LitElement {
       id="${elementID}"
       bType="${bType ?? ''}"
       default="${value.textContent as string}"
+      ?readOnly="${readOnly}"
     ></mbg-val-input>`;
   }
 
