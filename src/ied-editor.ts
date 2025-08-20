@@ -15,12 +15,18 @@ import '@material/web/icon/icon.js';
 import '@material/web/radio/radio.js';
 import '@material/web/progress/circular-progress.js';
 
-function debounce(callback: any, delay = 100) {
-  let timeout: any;
+const cache = new WeakMap();
 
-  return (...args: any) => {
+type DataModel = Map<Element, DataModel>;
+
+type Values = Map<Element, Values | Element[]>;
+
+function debounce(callback: (...args: unknown[]) => void, delay = 100) {
+  let timeout: number;
+
+  return (...args: unknown[]) => {
     clearTimeout(timeout);
-    timeout = setTimeout(() => {
+    timeout = window.setTimeout(() => {
       callback(...args);
     }, delay);
   };
@@ -103,7 +109,14 @@ function findInstanceToRemove(element: Element) {
   return findInstanceToRemove(parent);
 }
 
-function getValues(instance: Element, dataModel: any) {
+function hasValues(values: Values | Element[] | undefined): boolean {
+  return Array.isArray(values) && values.length > 0;
+}
+
+function getValues(
+  instance: Element,
+  dataModel: DataModel,
+): Values | Element[] {
   // instance -> DOI -> SDI* -> DAI -> Val
   const childVals = Array.from(instance.children).filter(
     child => child.tagName === 'Val',
@@ -117,9 +130,9 @@ function getValues(instance: Element, dataModel: any) {
   );
 
   const childNames = children.map(child => child.getAttribute('name'));
-  const values = new Map<Element, any>();
+  const values = new Map<Element, Values | Element[]>();
 
-  dataModel.forEach((value: any, key: any) => {
+  dataModel.forEach((value: DataModel, key: Element) => {
     if (childNames.includes(key.getAttribute('name'))) {
       values.set(
         key,
@@ -136,9 +149,7 @@ function getValues(instance: Element, dataModel: any) {
   return values;
 }
 
-const cache = new WeakMap();
-
-function getDataModel(dataType: Element, path: string[]) {
+function getDataModel(dataType: Element, path: string[]): DataModel {
   // a datatype can have multiple paths
   const stringPath = path.join(' ');
   if (!cache.has(dataType)) {
@@ -151,7 +162,7 @@ function getDataModel(dataType: Element, path: string[]) {
   const children = Array.from(dataType.children).filter(child =>
     ['DO', 'DA', 'SDO', 'BDA'].includes(child.tagName),
   );
-  const dataModel = new Map();
+  const dataModel = new Map<Element, DataModel>();
 
   for (const child of children) {
     if (!cache.has(child)) {
@@ -292,7 +303,10 @@ export class IedEditor extends LitElement {
     this.requestUpdate();
   }
 
-  private debounceSearch = debounce((term: string) => this.performSearch(term));
+  private debounceSearch = debounce((...args: unknown[]) => {
+    const term = args[0] as string;
+    this.performSearch(term);
+  });
 
   private resetSearch() {
     this.searchTerm = '';
@@ -525,16 +539,15 @@ export class IedEditor extends LitElement {
   }
 
   private renderDataModel(
-    dataModel: any,
-    values: Map<Element, any>,
+    dataModel: DataModel,
+    values: Values | undefined,
     ln: Element,
     path: { name: string; tag: string }[] = [],
     odd = false,
   ) {
-    return dataModel
-      .entries()
+    return Array.from(dataModel.entries())
       .filter(
-        ([key]: [Element]) =>
+        ([key]: [Element, DataModel]) =>
           !this.searchTerm ||
           this.pathsToRender.find(
             renderPath =>
@@ -543,13 +556,12 @@ export class IedEditor extends LitElement {
           ),
       )
       .map(
-        ([key, value]: [Element, Set<Element>]) =>
+        ([key, value]: [Element, DataModel]) =>
           html` <details
             class="${classMap({
               odd,
               'value-details':
-                Array.isArray(values?.get(key)) ||
-                (value.size === 0 && !values?.get(key)?.length),
+                Array.isArray(values?.get(key)) || value.size === 0,
             })}"
             @toggle=${() => {
               this.requestUpdate();
@@ -557,16 +569,15 @@ export class IedEditor extends LitElement {
           >
             <summary
               class="${classMap({
-                instantiated: values?.has(key),
-                uninitialized: value.size === 0 && !values?.get(key)?.length,
+                instantiated: !!values?.has(key),
+                uninitialized: value.size === 0 && !hasValues(values?.get(key)),
                 'hide-marker':
-                  Array.isArray(values?.get(key)) ||
-                  (value.size === 0 && !values?.get(key)?.length),
+                  Array.isArray(values?.get(key)) || value.size === 0,
               })}"
             >
               <div class="model-key-container">
                 ${key.getAttribute('name')}
-                ${value.size === 0 && !values?.get(key)?.length
+                ${value.size === 0 && !hasValues(values?.get(key))
                   ? html`<md-icon-button
                       @click=${() => {
                         const val = key.ownerDocument.createElementNS(
@@ -605,7 +616,7 @@ export class IedEditor extends LitElement {
                 ${Array.isArray(values?.get(key))
                   ? html`<div class="render-value-container">
                       ${this.renderValueInput(
-                        values.get(key)[0],
+                        (values.get(key) as Element[])[0],
                         ln,
                         path.concat([
                           {
@@ -619,7 +630,7 @@ export class IedEditor extends LitElement {
                         <md-icon-button
                           @click=${() =>
                             this.updateValue(
-                              values.get(key)[0],
+                              (values.get(key) as Element[])[0],
                               ln,
                               path.concat([
                                 {
@@ -633,7 +644,9 @@ export class IedEditor extends LitElement {
                         <md-icon-button
                           @click=${() => {
                             const removeVal: Remove = {
-                              node: findInstanceToRemove(values.get(key)[0]),
+                              node: findInstanceToRemove(
+                                (values.get(key) as Element[])[0],
+                              ),
                             };
                             this.dispatchEvent(newEditEventV2(removeVal));
                             this.requestUpdate();
@@ -674,7 +687,7 @@ export class IedEditor extends LitElement {
                 render(
                   this.renderDataModel(
                     value,
-                    values?.get(key),
+                    values?.get(key) as Values | undefined,
                     ln,
                     path.concat({
                       name: key.getAttribute('name') ?? '',
@@ -698,7 +711,7 @@ export class IedEditor extends LitElement {
 
     const path = [`${ln.tagName} ${identity(ln)}`];
     const dataModel = getDataModel(lnType, path);
-    const values = getValues(ln, dataModel) as Map<Element, any>;
+    const values = getValues(ln, dataModel) as Values;
     return this.renderDataModel(dataModel, values, ln);
   }
 

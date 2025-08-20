@@ -4,7 +4,7 @@ import { repeat } from 'lit/directives/repeat.js';
 
 import { SetAttributes } from '@omicronenergy/oscd-api';
 import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
-import { updateIED } from '@openenergytools/scl-lib';
+import { updateIED, Update } from '@openenergytools/scl-lib';
 
 import { IedEditor } from './ied-editor.js';
 
@@ -48,7 +48,7 @@ export default class MbgIedEditor extends LitElement {
 
   private updateIedEditor() {
     // trigger update to IedEditor
-    const iedEditor = this.shadowRoot?.querySelector('ied-editor') as IedEditor;
+    const iedEditor = this.shadowRoot?.querySelector<IedEditor>('ied-editor');
     iedEditor?.requestUpdate();
   }
 
@@ -109,14 +109,16 @@ export default class MbgIedEditor extends LitElement {
 
       if (document.body.querySelector('oscd-shell') !== null) {
         // use oscd-api to update the IED's name
-        this.dispatchEvent(newEditEventV2(updateIED(newNameAttribute as any)));
+        this.dispatchEvent(
+          newEditEventV2(updateIED(newNameAttribute as unknown as Update)),
+        );
       } else {
         // ensure backwards compatibility
         this.dispatchEvent(
           new CustomEvent('oscd-edit', {
             composed: true,
             bubbles: true,
-            detail: updateIED(newNameAttribute as any),
+            detail: updateIED(newNameAttribute as unknown as Update),
           }),
         );
       }
