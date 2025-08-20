@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, render } from 'lit';
+import { LitElement, html, css, nothing, render, TemplateResult } from 'lit';
 import { ref } from 'lit/directives/ref.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { property } from 'lit/decorators.js';
@@ -207,7 +207,7 @@ function setTag(key: Element) {
 export class IedEditor extends LitElement {
   @property({ type: Object }) doc?: Document;
 
-  @property({ type: Object }) ied?: Element;
+  @property({ type: Object }) ied!: Element;
 
   @property({ type: String }) docName? = '';
 
@@ -485,6 +485,7 @@ export class IedEditor extends LitElement {
     readOnly: boolean,
   ) {
     const lnType = ln.getAttribute('lnType');
+    const sGroup = value.getAttribute('sGroup');
 
     // build distinct id for the mbg-value-input
     const parentLD = (ln.parentNode as Element)?.getAttribute('inst');
@@ -519,6 +520,7 @@ export class IedEditor extends LitElement {
         .enumOrdinals=${JSON.stringify(enumOrdinals)}
         .enumLabels=${JSON.stringify(enumLabels)}
         default="${value.textContent as string}"
+        label="Val ${sGroup}"
         ?readOnly="${readOnly}"
       ></mbg-val-input>`;
     }
@@ -527,55 +529,123 @@ export class IedEditor extends LitElement {
       id="${elementID}"
       bType="${bType ?? ''}"
       default="${value.textContent as string}"
+      label="Val ${sGroup}"
       ?readOnly="${readOnly}"
     ></mbg-val-input>`;
   }
 
   private renderValues(
-    key: Element,
-    values: Values,
+    values: Element[],
     ln: Element,
+    numOfSGs: number,
+    actSG: number,
     path: { name: string; tag: string }[],
   ) {
     // determine if the input should be read-only
     const lnType = ln.getAttribute('lnType');
     const parentDA = this.getMostNestedElt(path, lnType as string);
+    const parentFC = parentDA?.getAttribute('fc');
     const valKind = parentDA?.getAttribute('valKind') ?? '';
     const readOnly = valKind === 'RO';
 
-    return html`<div class="render-value-container">
-      ${this.renderValueInputField(
-        (values.get(key) as Element[])[0],
-        ln,
-        path,
-        readOnly,
-      )}
-      ${readOnly
-        ? nothing
-        : html`<div class="render-value-actions">
-            <md-icon-button
-              @click=${() =>
-                this.updateValue((values.get(key) as Element[])[0], ln, path)}
-              ><md-icon>save</md-icon></md-icon-button
-            >
-            <md-icon-button
-              @click=${() => {
-                const removeVal: Remove = {
-                  node: findInstanceToRemove((values.get(key) as Element[])[0]),
-                };
-                this.dispatchEvent(newEditEventV2(removeVal));
-                this.requestUpdate();
-              }}
-              ><md-icon>delete</md-icon></md-icon-button
-            >
-          </div>`}
-    </div> `;
+    if (numOfSGs === 0 || !['SG', 'SE'].includes(parentFC as string)) {
+      return html` <div class="render-values">
+        <div class="render-value-container">
+          ${this.renderValueInputField(values[0], ln, path, readOnly)}
+          ${readOnly
+            ? nothing
+            : html` <div class="render-value-actions">
+                <md-icon-button
+                  @click=${() => this.updateValue(values[0], ln, path)}
+                  ><md-icon>save</md-icon></md-icon-button
+                >
+                <md-icon-button
+                  @click=${() => {
+                    const removeVal: Remove = {
+                      node: findInstanceToRemove(values[0]),
+                    };
+                    this.dispatchEvent(newEditEventV2(removeVal));
+                    this.requestUpdate();
+                  }}
+                  ><md-icon>delete</md-icon></md-icon-button
+                >
+              </div>`}
+        </div>
+      </div>`;
+    }
+
+    const valueContainers: TemplateResult[] = [];
+    for (let i = 1; i <= numOfSGs; i += 1) {
+      const value = values.find(
+        val => parseInt(val?.getAttribute('sGroup')?.trim() ?? '0', 10) === i,
+      );
+
+      valueContainers.push(
+        value
+          ? html`
+              <div class="render-value-container">
+                ${this.renderValueInputField(value, ln, path, readOnly)}
+                ${readOnly
+                  ? nothing
+                  : html`<div class="render-value-actions">
+                      <md-icon-button
+                        @click=${() => this.updateValue(value, ln, path)}
+                        ><md-icon>save</md-icon></md-icon-button
+                      >
+                      <md-icon-button
+                        @click=${() => {
+                          const removeVal: Remove = {
+                            node: findInstanceToRemove(value),
+                          };
+                          this.dispatchEvent(newEditEventV2(removeVal));
+                          this.requestUpdate();
+                        }}
+                        ><md-icon>delete</md-icon></md-icon-button
+                      >
+                    </div>`}
+              </div>
+            `
+          : html`
+              <div class="render-value-container">
+                <p class="error">
+                  Missing value for SG ${i}
+                  <md-icon-button
+                    @click=${() => {
+                      const val = ln.ownerDocument.createElementNS(
+                        ln.namespaceURI,
+                        'Val',
+                      );
+                      val.textContent = this.getTemplateValue(
+                        ln,
+                        path,
+                      ) as string;
+                      val.setAttribute('sGroup', i.toString());
+                      const { parent, edits } = this.instantiatePath(path, ln);
+                      const newVal: Insert = {
+                        parent,
+                        node: val,
+                        reference: null,
+                      };
+                      this.dispatchEvent(newEditEventV2([...edits, newVal]));
+                      this.requestUpdate();
+                    }}
+                    ><md-icon>add</md-icon></md-icon-button
+                  >
+                </p>
+              </div>
+            `,
+      );
+    }
+
+    return html` <div class="render-values">${valueContainers}</div> `;
   }
 
   private renderDataModel(
     dataModel: DataModel,
     values: Values | undefined,
     ln: Element,
+    numOfSGs: number,
+    actSG: number,
     path: { name: string; tag: string }[] = [],
     odd = false,
   ) {
@@ -649,9 +719,10 @@ export class IedEditor extends LitElement {
                   : nothing}
                 ${Array.isArray(values?.get(key))
                   ? this.renderValues(
-                      key,
-                      values,
+                      values.get(key) as Element[],
                       ln,
+                      numOfSGs,
+                      actSG,
                       path.concat([
                         {
                           name: key.getAttribute('name') ?? '',
@@ -693,6 +764,8 @@ export class IedEditor extends LitElement {
                     value,
                     values?.get(key) as Values | undefined,
                     ln,
+                    numOfSGs,
+                    actSG,
                     path.concat({
                       name: key.getAttribute('name') ?? '',
                       tag: setTag(key),
@@ -707,7 +780,7 @@ export class IedEditor extends LitElement {
       );
   }
 
-  private renderLN(ln: Element) {
+  private renderLN(ln: Element, numOfSGs: number, actSG: number) {
     const lnType = this.doc?.querySelector(
       `:root > DataTypeTemplates > LNodeType[id="${ln.getAttribute('lnType')}"]`,
     ) as Element;
@@ -716,7 +789,74 @@ export class IedEditor extends LitElement {
     const path = [`${ln.tagName} ${identity(ln)}`];
     const dataModel = getDataModel(lnType, path);
     const values = getValues(ln, dataModel) as Values;
-    return this.renderDataModel(dataModel, values, ln);
+    return this.renderDataModel(dataModel, values, ln, numOfSGs, actSG);
+  }
+
+  private renderLDevice(ld: Element) {
+    // get the setting control block
+    const sgcb = ld.querySelector(':scope > LN0 > SettingControl');
+    const numOfSGs = parseInt(
+      sgcb?.getAttribute('numOfSGs')?.trim() ?? '0',
+      10,
+    );
+    const actSG = parseInt(sgcb?.getAttribute('actSG')?.trim() ?? '0', 10);
+
+    return html`
+      <details
+        class="${classMap({
+          'ldevice-details':
+            Array.from(
+              ld.closest('Server')!.querySelectorAll(':scope > LDevice'),
+            ).length > 1,
+        })}"
+        open
+      >
+        <summary>
+          ${ld.getAttribute('inst')}
+          <div class="model-actions">
+            <span class="type">${ld.nodeName}</span>
+            <md-icon-button @click=${handleModelExpand}
+              ><md-icon>expand_all</md-icon></md-icon-button
+            >
+          </div>
+        </summary>
+        ${this.getInstanceDescription(ld)}
+        ${Array.from(ld.querySelectorAll(':scope > LN0, :scope > LN'))
+          .filter(
+            ln =>
+              !this.searchTerm ||
+              this.pathsToRender.find(path =>
+                path.startsWith(`${ln.tagName} ${identity(ln)}`),
+              ),
+          )
+          .map(
+            ln => html`
+              <details class="odd">
+                <summary>
+                  ${ln.getAttribute('prefix')}${ln.getAttribute(
+                    'lnClass',
+                  )}${ln.getAttribute('inst')}
+                  <div class="model-actions">
+                    <div>
+                      <span class="type">
+                        ${ln.nodeName}
+                        <span class="subtype"
+                          >(${ln.getAttribute('lnType')})</span
+                        >
+                      </span>
+                    </div>
+                    <md-icon-button @click=${handleModelExpand}
+                      ><md-icon>expand_all</md-icon></md-icon-button
+                    >
+                  </div>
+                </summary>
+                ${this.getInstanceDescription(ln)}
+                ${this.renderLN(ln, numOfSGs, actSG)}
+              </details>
+            `,
+          )}
+      </details>
+    `;
   }
 
   render() {
@@ -774,68 +914,7 @@ export class IedEditor extends LitElement {
                       path.includes(identity(ld) as string),
                     ),
                 )
-                .map(
-                  ld => html`
-                    <details
-                      class="${classMap({
-                        'ldevice-details':
-                          Array.from(
-                            server.querySelectorAll(':scope > LDevice'),
-                          ).length > 1,
-                      })}"
-                      open
-                    >
-                      <summary>
-                        ${ld.getAttribute('inst')}
-                        <div class="model-actions">
-                          <span class="type">${ld.nodeName}</span>
-                          <md-icon-button @click=${handleModelExpand}
-                            ><md-icon>expand_all</md-icon></md-icon-button
-                          >
-                        </div>
-                      </summary>
-                      ${this.getInstanceDescription(ld)}
-                      ${Array.from(
-                        ld.querySelectorAll(':scope > LN0, :scope > LN'),
-                      )
-                        .filter(
-                          ln =>
-                            !this.searchTerm ||
-                            this.pathsToRender.find(path =>
-                              path.startsWith(`${ln.tagName} ${identity(ln)}`),
-                            ),
-                        )
-                        .map(
-                          ln => html`
-                            <details class="odd">
-                              <summary>
-                                ${ln.getAttribute('prefix')}${ln.getAttribute(
-                                  'lnClass',
-                                )}${ln.getAttribute('inst')}
-                                <div class="model-actions">
-                                  <div>
-                                    <span class="type">
-                                      ${ln.nodeName}
-                                      <span class="subtype"
-                                        >(${ln.getAttribute('lnType')})</span
-                                      >
-                                    </span>
-                                  </div>
-                                  <md-icon-button @click=${handleModelExpand}
-                                    ><md-icon
-                                      >expand_all</md-icon
-                                    ></md-icon-button
-                                  >
-                                </div>
-                              </summary>
-                              ${this.getInstanceDescription(ln)}
-                              ${this.renderLN(ln)}
-                            </details>
-                          `,
-                        )}
-                    </details>
-                  `,
-                )}
+                .map(ld => this.renderLDevice(ld))}
             </details>`,
         )}
       </main>
