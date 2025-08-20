@@ -11,9 +11,11 @@ import 'mbg-val-input/mbg-val-input.js';
 
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
+import '@material/web/iconbutton/filled-icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/radio/radio.js';
 import '@material/web/progress/circular-progress.js';
+import '@material/web/fab/fab.js';
 
 function debounce(callback: any, delay = 100) {
   let timeout: any;
@@ -24,6 +26,24 @@ function debounce(callback: any, delay = 100) {
       callback(...args);
     }, delay);
   };
+}
+
+function displayValueActions(e: Event) {
+  const button = e.target as HTMLButtonElement;
+  const icon = button.querySelector('md-icon') as HTMLSpanElement;
+  const toggleExpand = icon.textContent === 'expand_circle_right';
+  icon.textContent = toggleExpand ? 'cancel' : 'expand_circle_right';
+
+  const iconButtons = button.parentElement?.querySelectorAll('md-icon-button');
+  if (!iconButtons) return;
+
+  for (const iconButton of iconButtons) {
+    // eslint-disable-next-line no-continue
+    if (iconButton.classList.contains('toggle-value-actions')) continue;
+
+    iconButton.classList.toggle('visible', toggleExpand);
+    iconButton.classList.toggle('hidden', !toggleExpand);
+  }
 }
 
 function handleModelExpand(e: Event) {
@@ -617,6 +637,13 @@ export class IedEditor extends LitElement {
 
                       <div class="render-value-actions">
                         <md-icon-button
+                          aria-label="Toggle value actions"
+                          class="toggle-value-actions"
+                          @click=${displayValueActions}
+                        >
+                          <md-icon>expand_circle_right</md-icon></md-icon-button
+                        >
+                        <md-icon-button
                           @click=${() =>
                             this.updateValue(
                               values.get(key)[0],
@@ -1024,6 +1051,51 @@ export class IedEditor extends LitElement {
       display: flex;
       align-items: baseline;
       gap: 0.5rem;
+    }
+
+    @keyframes slideRight {
+      from {
+        opacity: 0;
+        transform: translateX(-20%);
+        pointer-events: none;
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: auto;
+      }
+    }
+
+    @keyframes slideLeft {
+      from {
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: auto;
+      }
+      to {
+        opacity: 0;
+        transform: translateX(-20%);
+        pointer-events: none;
+      }
+    }
+
+    .render-value-actions md-icon-button:not(.toggle-value-actions) {
+      opacity: 0;
+      transition: transform 0.5s ease-out;
+      pointer-events: none;
+    }
+
+    .render-value-actions md-icon-button.visible {
+      animation: slideRight 0.5s forwards;
+    }
+
+    .render-value-actions md-icon-button.hidden {
+      animation: slideLeft 0.5s forwards;
+    }
+
+    .toggle-value-actions {
+      --md-sys-color-on-surface-variant: var(--oscd-primary);
+      --md-icon-button-hover-icon-color: var(--oscd-primary);
     }
 
     md-icon-button {
