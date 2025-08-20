@@ -478,10 +478,11 @@ export class IedEditor extends LitElement {
     this.requestUpdate();
   }
 
-  private renderValueInput(
+  private renderValueInputField(
     value: Element,
     ln: Element,
     path: { name: string; tag: string }[],
+    readOnly: boolean,
   ) {
     const lnType = ln.getAttribute('lnType');
 
@@ -496,14 +497,6 @@ export class IedEditor extends LitElement {
 
     const parentDA = this.getMostNestedElt(path, lnType as string);
     const bType = parentDA?.getAttribute('bType');
-
-    // check if the value is read-only
-    const valKind = parentDA?.getAttribute('valKind') ?? '';
-    const valImport = parentDA?.getAttribute('valImport') ?? '';
-    let readOnly = false;
-    if (valKind === 'RO' && valImport !== 'true') {
-      readOnly = true;
-    }
 
     // if it is an enum type, get the ordinal numbers and string labels
     if (bType === 'Enum') {
@@ -536,6 +529,47 @@ export class IedEditor extends LitElement {
       default="${value.textContent as string}"
       ?readOnly="${readOnly}"
     ></mbg-val-input>`;
+  }
+
+  private renderValues(
+    key: Element,
+    values: Values,
+    ln: Element,
+    path: { name: string; tag: string }[],
+  ) {
+    // determine if the input should be read-only
+    const lnType = ln.getAttribute('lnType');
+    const parentDA = this.getMostNestedElt(path, lnType as string);
+    const valKind = parentDA?.getAttribute('valKind') ?? '';
+    const readOnly = valKind === 'RO';
+
+    return html`<div class="render-value-container">
+      ${this.renderValueInputField(
+        (values.get(key) as Element[])[0],
+        ln,
+        path,
+        readOnly,
+      )}
+      ${readOnly
+        ? nothing
+        : html`<div class="render-value-actions">
+            <md-icon-button
+              @click=${() =>
+                this.updateValue((values.get(key) as Element[])[0], ln, path)}
+              ><md-icon>save</md-icon></md-icon-button
+            >
+            <md-icon-button
+              @click=${() => {
+                const removeVal: Remove = {
+                  node: findInstanceToRemove((values.get(key) as Element[])[0]),
+                };
+                this.dispatchEvent(newEditEventV2(removeVal));
+                this.requestUpdate();
+              }}
+              ><md-icon>delete</md-icon></md-icon-button
+            >
+          </div>`}
+    </div> `;
   }
 
   private renderDataModel(
@@ -614,47 +648,17 @@ export class IedEditor extends LitElement {
                     >`
                   : nothing}
                 ${Array.isArray(values?.get(key))
-                  ? html`<div class="render-value-container">
-                      ${this.renderValueInput(
-                        (values.get(key) as Element[])[0],
-                        ln,
-                        path.concat([
-                          {
-                            name: key.getAttribute('name') ?? '',
-                            tag: 'DAI',
-                          },
-                        ]),
-                      )}
-
-                      <div class="render-value-actions">
-                        <md-icon-button
-                          @click=${() =>
-                            this.updateValue(
-                              (values.get(key) as Element[])[0],
-                              ln,
-                              path.concat([
-                                {
-                                  name: key.getAttribute('name') ?? '',
-                                  tag: 'DAI',
-                                },
-                              ]),
-                            )}
-                          ><md-icon>save</md-icon></md-icon-button
-                        >
-                        <md-icon-button
-                          @click=${() => {
-                            const removeVal: Remove = {
-                              node: findInstanceToRemove(
-                                (values.get(key) as Element[])[0],
-                              ),
-                            };
-                            this.dispatchEvent(newEditEventV2(removeVal));
-                            this.requestUpdate();
-                          }}
-                          ><md-icon>delete</md-icon></md-icon-button
-                        >
-                      </div>
-                    </div> `
+                  ? this.renderValues(
+                      key,
+                      values,
+                      ln,
+                      path.concat([
+                        {
+                          name: key.getAttribute('name') ?? '',
+                          tag: 'DAI',
+                        },
+                      ]),
+                    )
                   : nothing}
               </div>
 
