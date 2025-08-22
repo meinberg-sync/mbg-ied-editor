@@ -81,6 +81,24 @@ function getInitializedEltPath(element: Element): string {
   return stringPath;
 }
 
+function getInputPath(
+  ln: Element,
+  path: { name: string; tag: string }[],
+  sGroup: string,
+) {
+  const parentLD = (ln.parentNode as Element)?.getAttribute('inst');
+  const lnClass = ln.getAttribute('lnClass');
+  const lnInst = ln.getAttribute('inst');
+
+  let elementID = `${parentLD}-${lnClass}${lnInst}`;
+  for (let i = 0; i < path.length; i += 1) {
+    elementID += `-${path[i].name}`;
+    if (i === path.length - 1) elementID += `${sGroup}`;
+  }
+
+  return elementID;
+}
+
 function renderDataModelSpan(key: Element) {
   if (key.nodeName === 'DA' || key.nodeName === 'BDA') {
     return html`<span class="type"
@@ -457,14 +475,11 @@ export class IedEditor extends LitElement {
     ln: Element,
     path: { name: string; tag: string }[],
   ) {
-    // start building distinct id for the mbg-value-input
-    const parentLD = (ln.parentNode as Element)?.getAttribute('inst');
-    const lnClass = ln.getAttribute('lnClass');
-    const lnInst = ln.getAttribute('inst');
-    let elementID = `${parentLD}-${lnClass}${lnInst}`;
-    for (let i = 0; i < path.length; i += 1) {
-      elementID += `-${path[i].name}`;
-    }
+    const elementID = getInputPath(
+      ln,
+      path,
+      value.getAttribute('sGroup') as string,
+    );
     const input = this.shadowRoot?.getElementById(
       `${elementID}`,
     ) as HTMLInputElement;
@@ -478,25 +493,68 @@ export class IedEditor extends LitElement {
     this.requestUpdate();
   }
 
+  private addValue(
+    ln: Element,
+    path: { name: string; tag: string }[],
+    setValue: string,
+    sGroup?: string,
+  ) {
+    const val = ln.ownerDocument.createElementNS(
+      ln.namespaceURI,
+      'Val',
+    ) as Element;
+    if (sGroup) val.setAttribute('sGroup', sGroup);
+    val.textContent = setValue;
+
+    const { parent, edits } = this.instantiatePath(path, ln);
+    const newVal: Insert = {
+      parent,
+      node: val,
+      reference: null,
+    };
+
+    this.dispatchEvent(newEditEventV2([...edits, newVal]));
+    this.requestUpdate();
+  }
+
+  private addValues(
+    ln: Element,
+    da: Element,
+    path: { name: string; tag: string }[],
+    numOfSGs: number,
+  ) {
+    const isSettingAttr = ['SG', 'SE'].includes(
+      da.getAttribute('fc') as string,
+    );
+    if (!isSettingAttr) {
+      this.addValue(ln, path, this.getTemplateValue(ln, path) as string);
+      return;
+    }
+
+    for (let i = 1; i <= numOfSGs; i += 1) {
+      this.addValue(
+        ln,
+        path,
+        this.getTemplateValue(ln, path) as string,
+        i.toString(),
+      );
+    }
+  }
+
   private renderValueInputField(
     value: Element,
     ln: Element,
     path: { name: string; tag: string }[],
     readOnly: boolean,
+    isActSG: boolean = false,
   ) {
-    const lnType = ln.getAttribute('lnType');
-    const sGroup = value.getAttribute('sGroup');
-
-    // build distinct id for the mbg-value-input
-    const parentLD = (ln.parentNode as Element)?.getAttribute('inst');
-    const lnClass = ln.getAttribute('lnClass');
-    const lnInst = ln.getAttribute('inst');
-    let elementID = `${parentLD}-${lnClass}${lnInst}`;
-    for (let i = 0; i < path.length; i += 1) {
-      elementID += `-${path[i].name}`;
-    }
-
-    const parentDA = this.getMostNestedElt(path, lnType as string);
+    const sGroup = value.getAttribute('sGroup') as string;
+    const label = isActSG ? `Val ${sGroup} (actSG)` : `Val ${sGroup ?? ''}`;
+    const elementID = getInputPath(ln, path, sGroup);
+    const parentDA = this.getMostNestedElt(
+      path,
+      ln.getAttribute('lnType') as string,
+    );
     const bType = parentDA?.getAttribute('bType');
 
     // if it is an enum type, get the ordinal numbers and string labels
@@ -520,7 +578,7 @@ export class IedEditor extends LitElement {
         .enumOrdinals=${JSON.stringify(enumOrdinals)}
         .enumLabels=${JSON.stringify(enumLabels)}
         default="${value.textContent as string}"
-        label="Val ${sGroup}"
+        label="${label}"
         ?readOnly="${readOnly}"
       ></mbg-val-input>`;
     }
@@ -529,7 +587,7 @@ export class IedEditor extends LitElement {
       id="${elementID}"
       bType="${bType ?? ''}"
       default="${value.textContent as string}"
-      label="Val ${sGroup}"
+      label="${label}"
       ?readOnly="${readOnly}"
     ></mbg-val-input>`;
   }
@@ -542,13 +600,14 @@ export class IedEditor extends LitElement {
     path: { name: string; tag: string }[],
   ) {
     // determine if the input should be read-only
-    const lnType = ln.getAttribute('lnType');
-    const parentDA = this.getMostNestedElt(path, lnType as string);
-    const parentFC = parentDA?.getAttribute('fc');
-    const valKind = parentDA?.getAttribute('valKind') ?? '';
-    const readOnly = valKind === 'RO';
+    const parentDA = this.getMostNestedElt(
+      path,
+      ln.getAttribute('lnType') as string,
+    );
+    const parentFC = parentDA?.getAttribute('fc') as string;
+    const readOnly = (parentDA?.getAttribute('valKind') as string) === 'RO';
 
-    if (numOfSGs === 0 || !['SG', 'SE'].includes(parentFC as string)) {
+    if (numOfSGs === 0 || !['SG', 'SE'].includes(parentFC)) {
       return html` <div class="render-values">
         <div class="render-value-container">
           ${this.renderValueInputField(values[0], ln, path, readOnly)}
@@ -575,6 +634,13 @@ export class IedEditor extends LitElement {
     }
 
     const valueContainers: TemplateResult[] = [];
+
+    const activeValue =
+      values.find(
+        val =>
+          parseInt(val?.getAttribute('sGroup')?.trim() ?? '0', 10) === actSG,
+      ) ?? values[0];
+
     for (let i = 1; i <= numOfSGs; i += 1) {
       const value = values.find(
         val => parseInt(val?.getAttribute('sGroup')?.trim() ?? '0', 10) === i,
@@ -584,7 +650,13 @@ export class IedEditor extends LitElement {
         value
           ? html`
               <div class="render-value-container">
-                ${this.renderValueInputField(value, ln, path, readOnly)}
+                ${this.renderValueInputField(
+                  value,
+                  ln,
+                  path,
+                  readOnly,
+                  value === activeValue,
+                )}
                 ${readOnly
                   ? nothing
                   : html`<div class="render-value-actions">
@@ -592,42 +664,52 @@ export class IedEditor extends LitElement {
                         @click=${() => this.updateValue(value, ln, path)}
                         ><md-icon>save</md-icon></md-icon-button
                       >
-                      <md-icon-button
-                        @click=${() => {
-                          const removeVal: Remove = {
-                            node: findInstanceToRemove(value),
-                          };
-                          this.dispatchEvent(newEditEventV2(removeVal));
-                          this.requestUpdate();
-                        }}
-                        ><md-icon>delete</md-icon></md-icon-button
-                      >
+                      ${value === activeValue
+                        ? html`<md-icon-button
+                            @click=${() => {
+                              for (const val of values) {
+                                const removeVal: Remove = {
+                                  node: findInstanceToRemove(val),
+                                };
+                                this.dispatchEvent(newEditEventV2(removeVal));
+                              }
+                              this.requestUpdate();
+                            }}
+                            ><md-icon>delete_sweep</md-icon></md-icon-button
+                          > `
+                        : html`<md-icon-button
+                            @click=${() => {
+                              value!.textContent =
+                                activeValue?.textContent as string;
+                              const input = this.shadowRoot!.getElementById(
+                                `${getInputPath(ln, path, i.toString())}`,
+                              ) as HTMLInputElement;
+                              if (input)
+                                input.value =
+                                  activeValue?.textContent as string;
+                              this.updateValue(value, ln, path);
+                            }}
+                            ?soft-disabled=${value.textContent ===
+                            activeValue?.textContent}
+                          >
+                            <md-icon>sync</md-icon>
+                          </md-icon-button>`}
                     </div>`}
               </div>
             `
           : html`
               <div class="render-value-container">
-                <p class="error">
+                <p class="value-error">
                   Missing value for SG ${i}
                   <md-icon-button
                     @click=${() => {
-                      const val = ln.ownerDocument.createElementNS(
-                        ln.namespaceURI,
-                        'Val',
-                      );
-                      val.textContent = this.getTemplateValue(
+                      this.addValue(
                         ln,
                         path,
-                      ) as string;
-                      val.setAttribute('sGroup', i.toString());
-                      const { parent, edits } = this.instantiatePath(path, ln);
-                      const newVal: Insert = {
-                        parent,
-                        node: val,
-                        reference: null,
-                      };
-                      this.dispatchEvent(newEditEventV2([...edits, newVal]));
-                      this.requestUpdate();
+                        (this.getTemplateValue(ln, path) as string) ||
+                          (activeValue?.textContent as string),
+                        i.toString(),
+                      );
                     }}
                     ><md-icon>add</md-icon></md-icon-button
                   >
@@ -684,35 +766,17 @@ export class IedEditor extends LitElement {
                 ${value.size === 0 && !hasValues(values?.get(key))
                   ? html`<md-icon-button
                       @click=${() => {
-                        const val = key.ownerDocument.createElementNS(
-                          ln.namespaceURI,
-                          'Val',
-                        );
-                        val.textContent = this.getTemplateValue(
+                        this.addValues(
                           ln,
+                          key,
                           path.concat([
                             {
                               name: key.getAttribute('name') ?? '',
                               tag: 'DAI',
                             },
                           ]),
-                        ) as string;
-                        const { parent, edits } = this.instantiatePath(
-                          path.concat([
-                            {
-                              name: key.getAttribute('name') ?? '',
-                              tag: 'DAI',
-                            },
-                          ]),
-                          ln,
+                          numOfSGs,
                         );
-                        const newVal: Insert = {
-                          parent,
-                          node: val,
-                          reference: null,
-                        };
-                        this.dispatchEvent(newEditEventV2([...edits, newVal]));
-                        this.requestUpdate();
                       }}
                       ><md-icon>add</md-icon></md-icon-button
                     >`
@@ -1116,10 +1180,20 @@ export class IedEditor extends LitElement {
       gap: 0.5rem;
     }
 
+    .render-values .render-value-container:not(:first-of-type) {
+      margin-top: 0.5rem;
+    }
+
     .render-value-container {
       display: flex;
       align-items: baseline;
       gap: 0.5rem;
+    }
+
+    .value-error {
+      color: var(--oscd-error);
+      font-weight: bold;
+      margin: inherit;
     }
 
     md-icon-button {
