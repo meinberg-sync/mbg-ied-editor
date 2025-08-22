@@ -1,23 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <SCL xmlns="http://www.iec.ch/61850/2003/SCL" version="2007" revision="B" release="4">
 	<Header id="Designer"/>
+  <Communication>
+		<SubNetwork name="DEMO" type="8-MMS">
+			<ConnectedAP apName="AP1" iedName="Just_an_IED">
+				<Address>
+					<P type="IP">172.31.0.255</P>
+					<P type="OSI-AP-Title">1,3,9999,23</P>
+					<P type="IP-SUBNET">255.255.255.0</P>
+					<P type="IP-GATEWAY">0.0.0.0</P>
+					<P type="OSI-AE-Qualifier">23</P>
+					<P type="OSI-PSEL">00000001</P>
+					<P type="OSI-SSEL">0001</P>
+					<P type="OSI-TSEL">0001</P>
+				</Address>
+			</ConnectedAP>
+			<ConnectedAP apName="AP1" iedName="Kind_of_an_IED">
+				<Address>
+					<P type="IP">172.31.255.255</P>
+					<P type="OSI-AP-Title">1,3,9999,23</P>
+					<P type="IP-SUBNET">255.255.255.0</P>
+					<P type="IP-GATEWAY">0.0.0.0</P>
+					<P type="OSI-AE-Qualifier">23</P>
+					<P type="OSI-PSEL">00000001</P>
+					<P type="OSI-SSEL">0001</P>
+					<P type="OSI-TSEL">0001</P>
+				</Address>
+			</ConnectedAP>
+		</SubNetwork>
+	</Communication>
 	<IED name="Just_an_IED" manufacturer="Dummy">
+    <Services>
+      <SettingGroups>
+        <SGEdit resvTms="true"/>
+      </SettingGroups>
+    </Services>
 		<AccessPoint name="AP1">
 			<Server>
 				<Authentication/>
 				<LDevice inst="Base" desc="Logical device: parent">
 					<LN0 lnClass="LLN0" inst="" lnType="Dummy.LLN0">
+            <DOI name="SetMod" desc="Mode">
+              <DAI name="setVal">
+                <Val sGroup="1">on</Val>
+                <Val sGroup="2">on</Val>
+              </DAI>
+            </DOI>
+            <SettingControl numOfSGs="3" actSG="1"/>
 					</LN0>
 				</LDevice>
 			</Server>
 		</AccessPoint>
 	</IED>
 	<IED name="Kind_of_an_IED" manufacturer="Dummy">
+    <Services>
+      <SettingGroups>
+        <SGEdit resvTms="true"/>
+      </SettingGroups>
+    </Services>
 		<AccessPoint name="AP1">
 			<Server>
 				<Authentication/>
 				<LDevice inst="Base">
 					<LN0 lnClass="LLN0" inst="" lnType="Dummy.LLN0">
+            <DOI name="SetMod" desc="Mode">
+              <DAI name="setVal">
+                <Val>on</Val>
+              </DAI>
+            </DOI>
+            <SettingControl numOfSGs="3" actSG="2"/>
 					</LN0>
 				</LDevice>
 			</Server>
@@ -26,6 +77,7 @@
 	<DataTypeTemplates>
 		<LNodeType lnClass="LLN0" id="Dummy.LLN0" desc="Logical device LN: parent">
 			<DO name="Mod" type="OpenSCD_ENC_Mod"/>
+			<DO name="SetMod" type="OpenSCD_ENG_SetMod"/>
 			<DO name="Beh" type="OpenSCD_ENS_Beh"/>
 			<DO name="Health" type="OpenSCD_ENS_Health"/>
 			<DO name="NamPlt" type="OpenSCD_LPL_LD"/>
@@ -43,7 +95,7 @@
 			<DA name="swRev" bType="VisString255" fc="DC"/>
 			<DA name="d" bType="VisString255" fc="DC"/>
 			<DA name="configRev" bType="VisString255" fc="DC"/>
-			<DA name="ldNs" bType="VisString255" fc="EX">
+			<DA name="ldNs" bType="VisString255" fc="EX" valKind="RO">
 				<Val>IEC 61850-7-4:2007B4</Val>
 			</DA>
 		</DOType>
@@ -75,6 +127,12 @@
 			<DA name="Oper" bType="Struct" fc="CO" type="OpenSCD_OperSBOw_BehaviourModeKind"/>
 			<DA name="Cancel" bType="Struct" fc="CO" type="OpenSCD_Cancel_BehaviourModeKind"/>
 		</DOType>
+    <DOType id="OpenSCD_ENG_SetMod" cdc="ENG">
+      <DA name="setVal" bType="Enum" valKind="Set" type="SetModeKind" fc="SE"/>
+      <DA name="dataNs" bType="VisString255" valKind="RO" fc="EX">
+        <Val>SIPROTEC5</Val>
+      </DA>
+    </DOType>
 		<DAType id="OpenSCD_Cancel_BehaviourModeKind" desc="Used to terminate a command before it is executed">
 			<BDA name="ctlVal" bType="Enum" type="BehaviourModeKind"/>
 			<BDA name="origin" bType="Struct" type="OpenSCD_Originator"/>
@@ -126,5 +184,9 @@
 			<EnumVal ord="7">maintenance</EnumVal>
 			<EnumVal ord="8">process</EnumVal>
 		</EnumType>
+    <EnumType id="SetModeKind">
+      <EnumVal ord="5">off</EnumVal>
+      <EnumVal ord="1">on</EnumVal>
+    </EnumType>
 	</DataTypeTemplates>
 </SCL>
