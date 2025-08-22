@@ -3,7 +3,7 @@ import { ref } from 'lit/directives/ref.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { property } from 'lit/decorators.js';
 
-import { identity } from '@openenergytools/scl-lib';
+import { Edit, identity } from '@openenergytools/scl-lib';
 import { Insert, Remove, SetTextContent } from '@omicronenergy/oscd-api';
 import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 
@@ -93,7 +93,7 @@ function getInputPath(
   let elementID = `${parentLD}-${lnClass}${lnInst}`;
   for (let i = 0; i < path.length; i += 1) {
     elementID += `-${path[i].name}`;
-    if (i === path.length - 1) elementID += `${sGroup}`;
+    if (i === path.length - 1) elementID += sGroup;
   }
 
   return elementID;
@@ -474,12 +474,9 @@ export class IedEditor extends LitElement {
     value: Element,
     ln: Element,
     path: { name: string; tag: string }[],
+    index: string = '',
   ) {
-    const elementID = getInputPath(
-      ln,
-      path,
-      value.getAttribute('sGroup') as string,
-    );
+    const elementID = getInputPath(ln, path, index);
     const input = this.shadowRoot?.getElementById(
       `${elementID}`,
     ) as HTMLInputElement;
@@ -541,16 +538,56 @@ export class IedEditor extends LitElement {
     }
   }
 
+  private addMissingValues(
+    ln: Element,
+    path: { name: string; tag: string }[],
+    actSGValue: Element,
+    numOfSGs: number,
+  ) {
+    const { parent, edits } = this.instantiatePath(path, ln);
+    const values = Array.from(parent.querySelectorAll(':scope > Val'));
+
+    const editMissingValues: Edit[] = edits;
+    for (let i = 1; i <= numOfSGs; i += 1) {
+      const val = values.find(
+        v =>
+          v.getAttribute('sGroup') === i.toString() ||
+          (!v.hasAttribute('sGroup') && i === 1),
+      );
+      if (!val) {
+        const node = ln.ownerDocument.createElementNS(
+          ln.namespaceURI,
+          'Val',
+        ) as Element;
+        node.setAttribute('sGroup', i.toString());
+        node.textContent = actSGValue.textContent;
+        editMissingValues.push({
+          parent,
+          node,
+          reference: null,
+        });
+      } else if (val.getAttribute('sGroup') !== i.toString()) {
+        editMissingValues.push({
+          element: val,
+          attributes: { sGroup: i.toString() },
+        });
+      }
+    }
+
+    this.dispatchEvent(newEditEventV2(editMissingValues));
+  }
+
   private renderValueInputField(
     value: Element,
     ln: Element,
     path: { name: string; tag: string }[],
     readOnly: boolean,
+    index: string = '',
     isActSG: boolean = false,
   ) {
-    const sGroup = value.getAttribute('sGroup') as string;
+    const sGroup = value.getAttribute('sGroup') || '';
     const label = isActSG ? `Val ${sGroup} (actSG)` : `Val ${sGroup ?? ''}`;
-    const elementID = getInputPath(ln, path, sGroup);
+    const elementID = getInputPath(ln, path, sGroup || index);
     const parentDA = this.getMostNestedElt(
       path,
       ln.getAttribute('lnType') as string,
@@ -642,9 +679,13 @@ export class IedEditor extends LitElement {
       ) ?? values[0];
 
     for (let i = 1; i <= numOfSGs; i += 1) {
-      const value = values.find(
+      let value = values.find(
         val => parseInt(val?.getAttribute('sGroup')?.trim() ?? '0', 10) === i,
       );
+
+      if (values.length === 1 && !value?.hasAttribute('sGroup')) {
+        [value] = values;
+      }
 
       valueContainers.push(
         value
@@ -655,18 +696,41 @@ export class IedEditor extends LitElement {
                   ln,
                   path,
                   readOnly,
+                  i.toString(),
                   value === activeValue,
                 )}
                 ${readOnly
                   ? nothing
                   : html`<div class="render-value-actions">
                       <md-icon-button
-                        @click=${() => this.updateValue(value, ln, path)}
+                        @click=${() => {
+                          this.addMissingValues(
+                            ln,
+                            path,
+                            activeValue,
+                            numOfSGs,
+                          );
+                          const val = Array.from(
+                            value.parentElement?.children ?? [],
+                          ).find(
+                            v =>
+                              v.getAttribute('sGroup') === i.toString() ||
+                              (!v.hasAttribute('sGroup') && i === 1),
+                          );
+                          if (val)
+                            this.updateValue(val, ln, path, i.toString());
+                        }}
                         ><md-icon>save</md-icon></md-icon-button
                       >
                       ${value === activeValue
                         ? html`<md-icon-button
                             @click=${() => {
+                              this.addMissingValues(
+                                ln,
+                                path,
+                                activeValue,
+                                numOfSGs,
+                              );
                               for (const val of values) {
                                 const removeVal: Remove = {
                                   node: findInstanceToRemove(val),
@@ -687,7 +751,7 @@ export class IedEditor extends LitElement {
                               if (input)
                                 input.value =
                                   activeValue?.textContent as string;
-                              this.updateValue(value, ln, path);
+                              this.updateValue(value, ln, path, i.toString());
                             }}
                             ?soft-disabled=${value.textContent ===
                             activeValue?.textContent}
