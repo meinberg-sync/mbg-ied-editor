@@ -61,7 +61,7 @@
 		<AccessPoint name="AP1">
 			<Server>
 				<Authentication/>
-				<LDevice inst="Base">
+				<LDevice inst="Application">
 					<LN0 lnClass="LLN0" inst="" lnType="Dummy.LLN0">
             <DOI name="SetMod" desc="Mode">
               <DAI name="setVal">
@@ -69,6 +69,20 @@
               </DAI>
             </DOI>
             <SettingControl numOfSGs="3" actSG="2"/>
+					</LN0>
+				</LDevice>
+				<LDevice inst="Base">
+					<LN0 lnClass="LLN0" inst="" lnType="NewDummy.LLN0">
+            <DOI name="SetMod" desc="Mode">
+              <DAI name="setVal">
+                <Val>on</Val>
+              </DAI>
+            </DOI>
+            <DOI name="GrRef" desc="GrRef">
+              <DAI name="setSrcRef">
+                <Val>@Application</Val>
+              </DAI>
+            </DOI>
 					</LN0>
 				</LDevice>
 			</Server>
@@ -84,6 +98,19 @@
 			<DO name="LocKey" type="OpenSCD_SPS_simple"/>
 			<DO name="Loc" type="OpenSCD_SPS_simple"/>
 		</LNodeType>
+		<LNodeType lnClass="LLN0" id="NewDummy.LLN0" desc="References another LDevice for the SGCB">
+			<DO name="GrRef" type="OpenSCD_ORG_GrRef"/>
+			<DO name="Mod" type="OpenSCD_ENC_Mod"/>
+			<DO name="SetMod" type="OpenSCD_ENG_SetMod"/>
+			<DO name="Beh" type="OpenSCD_ENS_Beh"/>
+			<DO name="Health" type="OpenSCD_ENS_Health"/>
+			<DO name="NamPlt" type="OpenSCD_LPL_LD"/>
+			<DO name="LocKey" type="OpenSCD_SPS_simple"/>
+			<DO name="Loc" type="OpenSCD_SPS_simple"/>
+		</LNodeType>
+    <DOType cdc="ORG" id="OpenSCD_ORG_GrRef">
+      <DA name="setSrcRef" bType="ObjRef" valKind="RO" dchg="true" fc="SP"/>
+    </DOType>
 		<DOType cdc="SPS" id="OpenSCD_SPS_simple">
 			<DA name="stVal" bType="BOOLEAN" dchg="true" fc="ST"/>
 			<DA name="q" bType="Quality" qchg="true" fc="ST"/>

@@ -210,6 +210,26 @@ function getDataModel(dataType: Element, path: string[]): DataModel {
   return dataModel;
 }
 
+function getSGCB(ld: Element): Element | null {
+  if (ld.querySelector(':scope > LN0 > SettingControl')) {
+    return ld.querySelector(':scope > LN0 > SettingControl') as Element;
+  }
+
+  if (!ld.querySelector(':scope > LN0 > DOI[name="GrRef"]')) {
+    return null;
+  }
+
+  const setSrcRef = ld.querySelector(
+    ':scope > LN0 > DOI[name="GrRef"] > DAI[name="setSrcRef"] > Val',
+  );
+  const sgcbRef = setSrcRef?.textContent?.trim().replace(/^@/, '') ?? '';
+  const ldRef = ld
+    .closest('Server')!
+    .querySelector(`:scope > LDevice[inst="${sgcbRef}"]`);
+
+  return getSGCB(ldRef as Element);
+}
+
 function setTag(key: Element) {
   let tag = 'DAI';
 
@@ -921,8 +941,7 @@ export class IedEditor extends LitElement {
   }
 
   private renderLDevice(ld: Element) {
-    // get the setting control block
-    const sgcb = ld.querySelector(':scope > LN0 > SettingControl');
+    const sgcb = getSGCB(ld);
     const numOfSGs = parseInt(
       sgcb?.getAttribute('numOfSGs')?.trim() ?? '0',
       10,
