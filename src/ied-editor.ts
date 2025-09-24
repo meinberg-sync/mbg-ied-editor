@@ -242,6 +242,16 @@ function setTag(key: Element) {
   return tag;
 }
 
+function isReadOnly(da: Element | null): boolean {
+  if (!da) return false;
+
+  const isKindRO = (da.getAttribute('valKind') as string) === 'RO';
+  if (!da.getAttribute('valImport')) return isKindRO;
+
+  const canImport = (da.getAttribute('valImport') as string) === 'false';
+  return isKindRO && canImport;
+}
+
 export class IedEditor extends LitElement {
   @property({ type: Object }) doc?: Document;
 
@@ -656,13 +666,13 @@ export class IedEditor extends LitElement {
     actSG: number,
     path: { name: string; tag: string }[],
   ) {
-    // determine if the input should be read-only
     const parentDA = this.getMostNestedElt(
       path,
       ln.getAttribute('lnType') as string,
     );
     const parentFC = parentDA?.getAttribute('fc') as string;
-    const readOnly = (parentDA?.getAttribute('valKind') as string) === 'RO';
+    const readOnly =
+      isReadOnly(parentDA) || isReadOnly(values[0].parentElement);
 
     if (numOfSGs === 0 || !['SG', 'SE'].includes(parentFC)) {
       return html` <div class="render-values">
