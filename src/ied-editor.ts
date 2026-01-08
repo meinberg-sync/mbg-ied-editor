@@ -783,7 +783,7 @@ export class IedEditor extends LitElement {
                                   activeValue?.textContent as string;
                               this.updateValue(value, ln, path, i.toString());
                             }}
-                            ?soft-disabled=${value.textContent ===
+                            ?disabled=${value.textContent ===
                             activeValue?.textContent}
                           >
                             <md-icon>sync</md-icon>
