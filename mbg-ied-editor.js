@@ -22904,7 +22904,7 @@ See www.iec.ch/CCv1 for copyright details
                             ><md-icon>delete_sweep</md-icon></md-icon-button
                           > `:m`<md-icon-button
                             @click=${()=>{I.textContent=b?.textContent;const _=this.shadowRoot.getElementById(`${ps(t,n,C.toString())}`);_&&(_.value=b?.textContent),this.updateValue(I,t,n,C.toString())}}
-                            ?soft-disabled=${I.textContent===b?.textContent}
+                            ?disabled=${I.textContent===b?.textContent}
                           >
                             <md-icon>sync</md-icon>
                           </md-icon-button>`}
