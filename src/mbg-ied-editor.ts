@@ -288,6 +288,8 @@ export default class MbgIedEditor extends LitElement {
     }
 
     main {
+      padding: 1rem;
+      padding-bottom: 0;
       margin: 1rem;
       background-color: var(--oscd-base2);
       color: var(--oscd-base01);
@@ -297,7 +299,7 @@ export default class MbgIedEditor extends LitElement {
     .ied-name-container {
       display: flex;
       align-items: center;
-      margin-bottom: 1rem;
+      padding-bottom: 1rem;
       column-gap: 0.5rem;
     }
 

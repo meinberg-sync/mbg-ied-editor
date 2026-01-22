@@ -1125,6 +1125,7 @@ export class IedEditor extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 1rem;
+      padding-bottom: var(--mbg-ied-editor-spacing);
     }
 
     main > details {
