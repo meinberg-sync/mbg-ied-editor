@@ -23074,6 +23074,7 @@ See www.iec.ch/CCv1 for copyright details
       display: flex;
       flex-direction: column;
       gap: 1rem;
+      padding-bottom: var(--mbg-ied-editor-spacing);
     }
 
     main > details {
@@ -23395,6 +23396,8 @@ See www.iec.ch/CCv1 for copyright details
     }
 
     main {
+      padding: 1rem;
+      padding-bottom: 0;
       margin: 1rem;
       background-color: var(--oscd-base2);
       color: var(--oscd-base01);
@@ -23404,7 +23407,7 @@ See www.iec.ch/CCv1 for copyright details
     .ied-name-container {
       display: flex;
       align-items: center;
-      margin-bottom: 1rem;
+      padding-bottom: 1rem;
       column-gap: 0.5rem;
     }
 
