@@ -1,19 +1,22 @@
 import { LitElement, html, css, nothing, render, TemplateResult } from 'lit';
 import { ref } from 'lit/directives/ref.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { property } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 
 import { Edit, identity } from '@openenergytools/scl-lib';
 import { Insert, Remove, SetTextContent } from '@omicronenergy/oscd-api';
 import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 
 import 'mbg-val-input/mbg-val-input.js';
+import './components/alert-dialog.js';
 
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/radio/radio.js';
 import '@material/web/progress/circular-progress.js';
+import '@material/web/dialog/dialog.js';
+import '@material/web/button/text-button.js';
 
 const cache = new WeakMap();
 
@@ -267,6 +270,16 @@ export class IedEditor extends LitElement {
 
   @property({ type: Boolean }) loadingIED = false;
 
+  @state() private pendingDeleteLN: Element | null = null;
+
+  @state() private deleteDialogOpen = false;
+
+  @state() private deleteDialogLD = '';
+
+  @state() private deleteDialogMessage = '';
+
+  @state() private deleteDialogItems: string[] = [];
+
   protected updated(changed: Map<string, unknown>) {
     super.updated?.(changed);
 
@@ -498,6 +511,38 @@ export class IedEditor extends LitElement {
     }
 
     return parentElt ?? null;
+  }
+
+  private deleteLN(ln: Element) {
+    const ldInst = (ln.parentNode as Element).getAttribute('inst') ?? '';
+    const lnIdentifier = `${ln.getAttribute('lnClass') ?? ''}${ln.getAttribute('inst') ?? ''}`;
+
+    const referencingElements: string[] = [];
+    Array.from(ln.parentElement?.querySelectorAll('* DAI') ?? []).forEach(
+      elt => {
+        if (
+          elt?.querySelector('Val')?.textContent === `${ldInst}/${lnIdentifier}`
+        ) {
+          const eltPath = getInitializedEltPath(elt);
+          const splitPath = eltPath.split(' ');
+          referencingElements.push(`${splitPath[2]}${splitPath[3]}`);
+        }
+      },
+    );
+
+    this.pendingDeleteLN = ln;
+    this.deleteDialogLD = ldInst;
+    this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnIdentifier}</strong>?`;
+    this.deleteDialogItems = referencingElements;
+    this.deleteDialogOpen = true;
+  }
+
+  private handleDeleteConfirm() {
+    if (!this.pendingDeleteLN) return;
+    const remove: Remove = { node: this.pendingDeleteLN };
+    this.dispatchEvent(newEditEventV2(remove));
+    this.pendingDeleteLN = null;
+    this.deleteDialogOpen = false;
   }
 
   private updateValue(
@@ -1002,6 +1047,13 @@ export class IedEditor extends LitElement {
                         >
                       </span>
                     </div>
+                    ${['LN'].includes(ln.tagName)
+                      ? html`
+                          <md-icon-button @click=${() => this.deleteLN(ln)}
+                            ><md-icon>delete</md-icon></md-icon-button
+                          >
+                        `
+                      : nothing}
                     <md-icon-button @click=${handleModelExpand}
                       ><md-icon>expand_all</md-icon></md-icon-button
                     >
@@ -1017,64 +1069,79 @@ export class IedEditor extends LitElement {
   }
 
   render() {
-    if (this.loadingIED) {
-      return html` <main>
-        <div class="loading-container">
-          <md-circular-progress four-color indeterminate></md-circular-progress>
-        </div>
-      </main>`;
-    }
-
     return html`
-      <main>
-        <div class="search-container">
-          <div class="search-field">
-            <md-filled-text-field
-              class="search-input"
-              label="Search"
-              @input=${(e: Event) => {
-                const searchInput = (e.target as HTMLInputElement)?.value;
-                this.debounceSearch(searchInput);
-              }}
-            >
-              <md-icon slot="leading-icon">search</md-icon>
-              <md-icon-button
-                aria-label="Clear search"
-                slot="trailing-icon"
-                title="Clear search"
-                @click=${() => this.resetSearch()}
-              >
-                <md-icon>clear</md-icon>
-              </md-icon-button>
-            </md-filled-text-field>
-          </div>
-        </div>
-
-        ${Array.from(
-          this.ied?.querySelectorAll(':scope > AccessPoint > Server') ?? [],
-        ).map(
-          server =>
-            html` <details class="odd" open>
-              <summary>
-                ${server.parentElement?.getAttribute('name')} Server
-                <div class="model-actions">
-                  <md-icon-button @click=${handleModelExpand}
-                    ><md-icon>expand_all</md-icon></md-icon-button
+      <mbg-alert-dialog
+        headline="Delete Logical Node"
+        confirmText="Delete"
+        confirmAction="delete"
+        .ld=${this.deleteDialogLD}
+        .message=${this.deleteDialogMessage}
+        .items=${this.deleteDialogItems}
+        .open=${this.deleteDialogOpen}
+        @confirm=${this.handleDeleteConfirm}
+        @cancel=${() => {
+          this.deleteDialogOpen = false;
+          this.pendingDeleteLN = null;
+        }}
+      ></mbg-alert-dialog>
+      ${this.loadingIED
+        ? html`<main>
+            <div class="loading-container">
+              <md-circular-progress
+                four-color
+                indeterminate
+              ></md-circular-progress>
+            </div>
+          </main>`
+        : html`<main>
+            <div class="search-container">
+              <div class="search-field">
+                <md-filled-text-field
+                  class="search-input"
+                  label="Search"
+                  @input=${(e: Event) => {
+                    const searchInput = (e.target as HTMLInputElement)?.value;
+                    this.debounceSearch(searchInput);
+                  }}
+                >
+                  <md-icon slot="leading-icon">search</md-icon>
+                  <md-icon-button
+                    aria-label="Clear search"
+                    slot="trailing-icon"
+                    title="Clear search"
+                    @click=${() => this.resetSearch()}
                   >
-                </div>
-              </summary>
-              ${Array.from(server.querySelectorAll(':scope > LDevice'))
-                .filter(
-                  ld =>
-                    !this.searchTerm ||
-                    this.pathsToRender.find(path =>
-                      path.includes(identity(ld) as string),
-                    ),
-                )
-                .map(ld => this.renderLDevice(ld))}
-            </details>`,
-        )}
-      </main>
+                    <md-icon>clear</md-icon>
+                  </md-icon-button>
+                </md-filled-text-field>
+              </div>
+            </div>
+
+            ${Array.from(
+              this.ied?.querySelectorAll(':scope > AccessPoint > Server') ?? [],
+            ).map(
+              server =>
+                html` <details class="odd" open>
+                  <summary>
+                    ${server.parentElement?.getAttribute('name')} Server
+                    <div class="model-actions">
+                      <md-icon-button @click=${handleModelExpand}
+                        ><md-icon>expand_all</md-icon></md-icon-button
+                      >
+                    </div>
+                  </summary>
+                  ${Array.from(server.querySelectorAll(':scope > LDevice'))
+                    .filter(
+                      ld =>
+                        !this.searchTerm ||
+                        this.pathsToRender.find(path =>
+                          path.includes(identity(ld) as string),
+                        ),
+                    )
+                    .map(ld => this.renderLDevice(ld))}
+                </details>`,
+            )}
+          </main>`}
     `;
   }
 

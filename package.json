@@ -21,6 +21,7 @@
     "@material/web": "^2.3.0",
     "@omicronenergy/oscd-api": "^0.1.2",
     "@omicronenergy/oscd-shell": "^0.0.8",
+    "@open-wc/scoped-elements": "^3.0.6",
     "@openenergytools/scl-lib": "^1.4.0",
     "lit": "^3.1.4",
     "mbg-val-input": "^0.4.3"
