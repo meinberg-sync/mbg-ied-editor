@@ -272,6 +272,8 @@ export class IedEditor extends LitElement {
 
   @state() private pendingDeleteLN: Element | null = null;
 
+  @state() private pendingDeleteFCDAs: Element[] = [];
+
   @state() private deleteDialogOpen = false;
 
   @state() private deleteDialogLD = '';
@@ -515,7 +517,10 @@ export class IedEditor extends LitElement {
 
   private deleteLN(ln: Element) {
     const ldInst = (ln.parentNode as Element).getAttribute('inst') ?? '';
-    const lnIdentifier = `${ln.getAttribute('lnClass') ?? ''}${ln.getAttribute('inst') ?? ''}`;
+    const lnClass = ln.getAttribute('lnClass') ?? '';
+    const lnInst = ln.getAttribute('inst') ?? '';
+    const prefix = ln.getAttribute('prefix') ?? '';
+    const lnIdentifier = `${lnClass}${lnInst}`;
 
     const referencingElements: string[] = [];
     Array.from(ln.parentElement?.querySelectorAll('* DAI') ?? []).forEach(
@@ -525,12 +530,32 @@ export class IedEditor extends LitElement {
         ) {
           const eltPath = getInitializedEltPath(elt);
           const splitPath = eltPath.split(' ');
-          referencingElements.push(`${splitPath[2]}${splitPath[3]}`);
+          referencingElements.push(`LN ${splitPath[2]}${splitPath[3]}`);
         }
       },
     );
 
+    const matchingFcdas: Element[] = [];
+    ln.closest('IED')
+      ?.querySelectorAll('FCDA')
+      .forEach(fcda => {
+        if (
+          fcda.getAttribute('ldInst') === ldInst &&
+          fcda.getAttribute('lnClass') === lnClass &&
+          (fcda.getAttribute('lnInst') ?? '') === lnInst &&
+          (fcda.getAttribute('prefix') ?? '') === prefix
+        ) {
+          matchingFcdas.push(fcda);
+          const datasetName = fcda.parentElement?.getAttribute('name') ?? '';
+          const doName = fcda.getAttribute('doName') ?? '';
+          const daName = fcda.getAttribute('daName');
+          const doRef = daName ? `${doName}.${daName}` : doName;
+          referencingElements.push(`FCDA ${doRef} in DataSet '${datasetName}'`);
+        }
+      });
+
     this.pendingDeleteLN = ln;
+    this.pendingDeleteFCDAs = matchingFcdas;
     this.deleteDialogLD = ldInst;
     this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnIdentifier}</strong>?`;
     this.deleteDialogItems = referencingElements;
@@ -539,9 +564,15 @@ export class IedEditor extends LitElement {
 
   private handleDeleteConfirm() {
     if (!this.pendingDeleteLN) return;
-    const remove: Remove = { node: this.pendingDeleteLN };
-    this.dispatchEvent(newEditEventV2(remove));
+
+    const edits: Remove[] = [
+      { node: this.pendingDeleteLN },
+      ...this.pendingDeleteFCDAs.map(fcda => ({ node: fcda })),
+    ];
+    this.dispatchEvent(newEditEventV2(edits));
+
     this.pendingDeleteLN = null;
+    this.pendingDeleteFCDAs = [];
     this.deleteDialogOpen = false;
   }
 
