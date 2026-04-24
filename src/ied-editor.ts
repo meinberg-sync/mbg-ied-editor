@@ -4,11 +4,18 @@ import { classMap } from 'lit/directives/class-map.js';
 import { property, state } from 'lit/decorators.js';
 
 import { Edit, identity } from '@openenergytools/scl-lib';
-import { Insert, Remove, SetTextContent } from '@omicronenergy/oscd-api';
+import {
+  Insert,
+  Remove,
+  SetAttributes,
+  SetTextContent,
+} from '@omicronenergy/oscd-api';
 import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 
 import 'mbg-val-input/mbg-val-input.js';
 import './components/alert-dialog.js';
+import './components/edit-dialog.js';
+import type { EditField } from './components/edit-dialog.js';
 
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
@@ -281,6 +288,18 @@ export class IedEditor extends LitElement {
   @state() private deleteDialogMessage = '';
 
   @state() private deleteDialogItems: string[] = [];
+
+  @state() private editDialogOpen = false;
+
+  @state() private editDialogHeadline = '';
+
+  @state() private editDialogFields: EditField[] = [];
+
+  private pendingEditElement: Element | null = null;
+
+  private pendingEditLN: Element | null = null;
+
+  private pendingEditPath: { name: string; tag: string }[] = [];
 
   protected updated(changed: Map<string, unknown>) {
     super.updated?.(changed);
@@ -574,6 +593,139 @@ export class IedEditor extends LitElement {
     this.pendingDeleteLN = null;
     this.pendingDeleteFCDAs = [];
     this.deleteDialogOpen = false;
+  }
+
+  private openEditDialog(
+    element: Element,
+    ln?: Element,
+    path?: { name: string; tag: string }[],
+  ) {
+    this.pendingEditElement = element;
+    const get = (attr: string) => element.getAttribute(attr) ?? '';
+
+    if (element.tagName === 'LN0') {
+      this.editDialogHeadline = `Edit ${get('lnClass') || 'LLN0'}`;
+      this.editDialogFields = [
+        { label: 'Description', attribute: 'desc', value: get('desc') },
+      ];
+    } else if (element.tagName === 'LN') {
+      const lnClass = get('lnClass');
+      const siblings = Array.from(
+        element.parentElement!.querySelectorAll(`LN[lnClass="${lnClass}"]`),
+      ).filter(sibling => sibling !== element);
+
+      this.editDialogHeadline = `Edit LN ${get('prefix')}${get('lnClass')}${get('inst')}`;
+      this.editDialogFields = [
+        { label: 'Description', attribute: 'desc', value: get('desc') },
+        { label: 'Prefix', attribute: 'prefix', value: get('prefix') },
+        {
+          label: 'Instance',
+          attribute: 'inst',
+          value: get('inst'),
+          validate: (value: string) =>
+            siblings.some(s => s.getAttribute('inst') === value)
+              ? `Instance ${value} of ${lnClass} already exists!`
+              : null,
+        },
+      ];
+    } else if (element.tagName === 'LDevice') {
+      this.editDialogHeadline = `Edit LDevice ${get('inst')}`;
+      this.editDialogFields = [
+        { label: 'Description', attribute: 'desc', value: get('desc') },
+        { label: 'LD Name', attribute: 'ldName', value: get('ldName') },
+      ];
+    } else if (element.tagName === 'AccessPoint') {
+      this.editDialogHeadline = `Edit Access Point ${get('name')}`;
+      this.editDialogFields = [
+        {
+          label: 'Name',
+          attribute: 'name',
+          value: get('name'),
+          validate: (value: string) =>
+            value.trim() === ''
+              ? 'The Access Point name cannot be empty!'
+              : null,
+        },
+        { label: 'Description', attribute: 'desc', value: get('desc') },
+      ];
+    } else if (['DO', 'SDO', 'DA', 'BDA'].includes(element.tagName)) {
+      this.pendingEditElement = null;
+      this.pendingEditLN = ln ?? null;
+      this.pendingEditPath = path ?? [];
+
+      let currentDesc = '';
+      if (ln && path && path.length > 0) {
+        let instance: Element | null = ln.querySelector(
+          `:scope > DOI[name="${path[0].name}"]`,
+        );
+        for (let i = 1; i < path.length && instance; i += 1) {
+          instance = instance.querySelector(
+            `:scope > *[name="${path[i].name}"]`,
+          );
+        }
+        currentDesc = instance?.getAttribute('desc') ?? '';
+      }
+
+      this.editDialogHeadline = `Edit ${get('name')}`;
+      this.editDialogFields = [
+        { label: 'Description', attribute: 'desc', value: currentDesc },
+      ];
+    }
+
+    this.editDialogOpen = true;
+  }
+
+  private handleEditSave(e: CustomEvent<Record<string, string>>) {
+    if (this.pendingEditLN && this.pendingEditPath.length > 0) {
+      const desc = e.detail.desc?.trim() || null;
+
+      if (!desc) {
+        let instance: Element | null = this.pendingEditLN.querySelector(
+          `:scope > DOI[name="${this.pendingEditPath[0].name}"]`,
+        );
+        for (let i = 1; i < this.pendingEditPath.length && instance; i += 1) {
+          instance = instance.querySelector(
+            `:scope > *[name="${this.pendingEditPath[i].name}"]`,
+          );
+        }
+        if (instance?.hasAttribute('desc')) {
+          this.dispatchEvent(
+            newEditEventV2([{ element: instance, attributes: { desc: null } }]),
+          );
+        }
+      } else {
+        const { parent, edits } = this.instantiatePath(
+          this.pendingEditPath,
+          this.pendingEditLN,
+        );
+        const setDesc: SetAttributes = {
+          element: parent,
+          attributes: { desc },
+        };
+        this.dispatchEvent(newEditEventV2([...edits, setDesc]));
+      }
+
+      this.pendingEditLN = null;
+      this.pendingEditPath = [];
+      this.editDialogOpen = false;
+      return;
+    }
+
+    if (!this.pendingEditElement) return;
+
+    const attributes: Record<string, string | null> = {};
+    for (const [attr, value] of Object.entries(e.detail)) {
+      attributes[attr] = value.trim() || null;
+    }
+
+    const edit: SetAttributes = {
+      element: this.pendingEditElement,
+      attributes,
+    };
+    this.dispatchEvent(newEditEventV2([edit]));
+
+    this.pendingEditElement = null;
+    this.editDialogOpen = false;
   }
 
   private updateValue(
@@ -930,8 +1082,18 @@ export class IedEditor extends LitElement {
                 'hide-marker':
                   Array.isArray(values?.get(key)) || value.size === 0,
               })}"
+              @click=${(e: Event) => {
+                if (Array.isArray(values?.get(key)) || value.size === 0) {
+                  e.preventDefault();
+                }
+              }}
             >
-              <div class="model-key-container">
+              <div
+                class="${classMap({
+                  'model-key-container': true,
+                  'has-values': Array.isArray(values?.get(key)),
+                })}"
+              >
                 ${key.getAttribute('name')}
                 ${value.size === 0 && !hasValues(values?.get(key))
                   ? html`<md-icon-button
@@ -967,16 +1129,30 @@ export class IedEditor extends LitElement {
                   : nothing}
               </div>
 
-              <div class="model-actions">
+              <div class="model-details">
                 ${renderDataModelSpan(key)}
-                ${['DO', 'SDO'].includes(key.tagName) ||
-                (['DA', 'BDA'].includes(key.tagName) && value.size > 0)
-                  ? html`
-                      <md-icon-button @click=${handleModelExpand}
-                        ><md-icon>expand_all</md-icon></md-icon-button
-                      >
-                    `
-                  : nothing}
+                <div class="model-actions">
+                  <md-icon-button
+                    @click=${() =>
+                      this.openEditDialog(
+                        key,
+                        ln,
+                        path.concat({
+                          name: key.getAttribute('name') ?? '',
+                          tag: setTag(key),
+                        }),
+                      )}
+                    ><md-icon>edit</md-icon></md-icon-button
+                  >
+                  ${['DO', 'SDO'].includes(key.tagName) ||
+                  (['DA', 'BDA'].includes(key.tagName) && value.size > 0)
+                    ? html`
+                        <md-icon-button @click=${handleModelExpand}
+                          ><md-icon>expand_all</md-icon></md-icon-button
+                        >
+                      `
+                    : nothing}
+                </div>
               </div>
             </summary>
 
@@ -1046,11 +1222,16 @@ export class IedEditor extends LitElement {
       >
         <summary>
           ${ld.getAttribute('inst')}
-          <div class="model-actions">
+          <div class="model-details">
             <span class="type">${ld.nodeName}</span>
-            <md-icon-button @click=${handleModelExpand}
-              ><md-icon>expand_all</md-icon></md-icon-button
-            >
+            <div class="model-actions">
+              <md-icon-button @click=${() => this.openEditDialog(ld)}
+                ><md-icon>edit</md-icon></md-icon-button
+              >
+              <md-icon-button @click=${handleModelExpand}
+                ><md-icon>expand_all</md-icon></md-icon-button
+              >
+            </div>
           </div>
         </summary>
         ${this.getInstanceDescription(ld)}
@@ -1069,7 +1250,7 @@ export class IedEditor extends LitElement {
                   ${ln.getAttribute('prefix')}${ln.getAttribute(
                     'lnClass',
                   )}${ln.getAttribute('inst')}
-                  <div class="model-actions">
+                  <div class="model-details">
                     <div>
                       <span class="type">
                         ${ln.nodeName}
@@ -1078,16 +1259,21 @@ export class IedEditor extends LitElement {
                         >
                       </span>
                     </div>
-                    ${['LN'].includes(ln.tagName)
-                      ? html`
-                          <md-icon-button @click=${() => this.deleteLN(ln)}
-                            ><md-icon>delete</md-icon></md-icon-button
-                          >
-                        `
-                      : nothing}
-                    <md-icon-button @click=${handleModelExpand}
-                      ><md-icon>expand_all</md-icon></md-icon-button
-                    >
+                    <div class="model-actions">
+                      ${['LN'].includes(ln.tagName)
+                        ? html`
+                            <md-icon-button @click=${() => this.deleteLN(ln)}
+                              ><md-icon>delete</md-icon></md-icon-button
+                            >
+                          `
+                        : nothing}
+                      <md-icon-button @click=${() => this.openEditDialog(ln)}
+                        ><md-icon>edit</md-icon></md-icon-button
+                      >
+                      <md-icon-button @click=${handleModelExpand}
+                        ><md-icon>expand_all</md-icon></md-icon-button
+                      >
+                    </div>
                   </div>
                 </summary>
                 ${this.getInstanceDescription(ln)}
@@ -1101,6 +1287,25 @@ export class IedEditor extends LitElement {
 
   render() {
     return html`
+      <mbg-edit-dialog
+        .headline=${this.editDialogHeadline}
+        .fields=${this.editDialogFields}
+        .open=${this.editDialogOpen}
+        @save=${this.handleEditSave}
+        @cancel=${() => {
+          this.editDialogOpen = false;
+          this.pendingEditElement = null;
+          this.pendingEditLN = null;
+          this.pendingEditPath = [];
+        }}
+        @closed=${() => {
+          this.editDialogOpen = false;
+          this.pendingEditElement = null;
+          this.pendingEditLN = null;
+          this.pendingEditPath = [];
+        }}
+      ></mbg-edit-dialog>
+
       <mbg-alert-dialog
         headline="Delete Logical Node"
         confirmText="Delete"
@@ -1114,7 +1319,12 @@ export class IedEditor extends LitElement {
           this.deleteDialogOpen = false;
           this.pendingDeleteLN = null;
         }}
+        @closed=${() => {
+          this.deleteDialogOpen = false;
+          this.pendingDeleteLN = null;
+        }}
       ></mbg-alert-dialog>
+
       ${this.loadingIED
         ? html`<main>
             <div class="loading-container">
@@ -1155,12 +1365,20 @@ export class IedEditor extends LitElement {
                 html` <details class="odd" open>
                   <summary>
                     ${server.parentElement?.getAttribute('name')} Server
-                    <div class="model-actions">
-                      <md-icon-button @click=${handleModelExpand}
-                        ><md-icon>expand_all</md-icon></md-icon-button
-                      >
+                    <div class="model-details">
+                      <div class="model-actions">
+                        <md-icon-button
+                          @click=${() =>
+                            this.openEditDialog(server.parentElement!)}
+                          ><md-icon>edit</md-icon></md-icon-button
+                        >
+                        <md-icon-button @click=${handleModelExpand}
+                          ><md-icon>expand_all</md-icon></md-icon-button
+                        >
+                      </div>
                     </div>
                   </summary>
+                  ${this.getInstanceDescription(server.parentElement!)}
                   ${Array.from(server.querySelectorAll(':scope > LDevice'))
                     .filter(
                       ld =>
@@ -1310,7 +1528,7 @@ export class IedEditor extends LitElement {
       padding: 0.5rem 0;
     }
 
-    summary.instantiated > .model-key-container {
+    summary.instantiated > .model-key-container.has-values {
       align-items: baseline;
     }
 
@@ -1319,7 +1537,7 @@ export class IedEditor extends LitElement {
       list-style: none;
     }
 
-    summary.uninitialized > .model-key-container > md-icon-button {
+    summary.uninitialized md-icon-button {
       pointer-events: auto;
     }
 
@@ -1338,7 +1556,6 @@ export class IedEditor extends LitElement {
       padding-left: 3rem;
       font-weight: normal;
       font-size: 16px;
-      vertical-align: middle;
     }
 
     span.subtype {
@@ -1360,10 +1577,16 @@ export class IedEditor extends LitElement {
       padding: 10px 0px;
     }
 
+    .model-details {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
     .model-actions {
       display: flex;
-      align-items: center;
-      gap: 0.25rem;
+      align-items: baseline;
+      gap: 0.5rem;
     }
 
     .model-key-container {
@@ -1388,13 +1611,9 @@ export class IedEditor extends LitElement {
       margin: inherit;
     }
 
-    md-icon-button {
-      vertical-align: sub;
-    }
-
     .ied-name md-icon-button,
     .search-field md-icon-button,
-    details.odd > summary .model-actions,
+    details.odd > summary .model-details,
     details.odd > * > .model-key-container,
     details.odd > * > * > .model-key-container {
       --md-icon-button-hover-state-layer-color: var(--oscd-base2);
