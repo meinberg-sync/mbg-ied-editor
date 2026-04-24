@@ -262,6 +262,47 @@ function isReadOnly(da: Element | null): boolean {
   return isKindRO && canImport;
 }
 
+function matchesLNToken(ln: Element, token: string): boolean {
+  if (token === '*') return true;
+  const lower = token.toLowerCase();
+  const lnClass = (ln.getAttribute('lnClass') ?? '').toLowerCase();
+  const inst = (ln.getAttribute('inst') ?? '').toLowerCase();
+  return (
+    lnClass.includes(lower) ||
+    inst.includes(lower) ||
+    `${lnClass}${inst}`.includes(lower)
+  );
+}
+
+function matchesNameToken(element: Element, token: string): boolean {
+  if (token === '*') return true;
+  return (element.getAttribute('name') ?? '')
+    .toLowerCase()
+    .includes(token.toLowerCase());
+}
+
+function pathHasPrefixAndTokens(
+  path: string,
+  lnPath: string,
+  nameTokens: string[],
+): boolean {
+  // Check whether a cached path string matches a known LN path prefix
+  if (!path.startsWith(lnPath)) return false;
+
+  // If there are no name tokens, any path with the correct LN prefix matches
+  if (nameTokens.length === 0) return path.length > lnPath.length;
+
+  // Split the remainder of the path into tokens and check for matches in order
+  const remainder = path.slice(lnPath.length + 1); // +1 to skip the separating space
+  const nameParts = remainder.split(' ');
+
+  return nameTokens.every((token, i) => {
+    const part = nameParts[i];
+    if (!part) return false;
+    return token === '*' || part.toLowerCase().includes(token.toLowerCase());
+  });
+}
+
 export class IedEditor extends LitElement {
   @property({ type: Object }) doc?: Document;
 
@@ -276,6 +317,8 @@ export class IedEditor extends LitElement {
   @property({ type: Array }) pathsToRender: string[] = [];
 
   @property({ type: Boolean }) loadingIED = false;
+
+  @state() private searchScope: 'all' | 'instances' = 'all';
 
   @state() private pendingDeleteLN: Element | null = null;
 
@@ -316,6 +359,10 @@ export class IedEditor extends LitElement {
     }
   }
 
+  private parseSearchTokens(): string[] {
+    return this.searchTerm.trim().split(/\s+/).filter(Boolean);
+  }
+
   private searchSelectorIED() {
     if (!this.ied) return [];
 
@@ -329,6 +376,20 @@ export class IedEditor extends LitElement {
         elt.getAttribute(attr)?.toLowerCase().includes(lowerCaseTerm),
       ),
     );
+  }
+
+  private searchSelectorIEDValues(): Element[] {
+    if (!this.ied) return [];
+
+    const lowerCaseTerm = this.searchTerm.toLowerCase();
+
+    const matchingDais = Array.from(
+      this.ied.querySelectorAll(':scope > AccessPoint > Server DAI > Val'),
+    )
+      .filter(val => val.textContent?.toLowerCase().includes(lowerCaseTerm))
+      .map(val => val.parentElement!);
+
+    return [...new Set(matchingDais)];
   }
 
   private searchSelectorTemplates() {
@@ -355,31 +416,124 @@ export class IedEditor extends LitElement {
     );
   }
 
+  private searchHierarchicalIED(tokens: string[]): Element[] {
+    if (!this.ied) return [];
+
+    const [firstToken, ...restTokens] = tokens;
+
+    // Start with all LN/LN0 elements matching the first token (or all if wildcard)
+    let currentLevel: Element[] = Array.from(
+      this.ied.querySelectorAll(
+        ':scope > AccessPoint > Server > LDevice > LN, :scope > AccessPoint > Server > LDevice > LN0',
+      ),
+    ).filter(ln => matchesLNToken(ln, firstToken));
+
+    // Iteratively narrow to children matching subsequent tokens, stopping if no matches at any level
+    for (const token of restTokens) {
+      currentLevel = currentLevel.flatMap(parent =>
+        Array.from(parent.children)
+          .filter(child => ['DOI', 'SDI', 'DAI'].includes(child.tagName))
+          .filter(child => matchesNameToken(child, token)),
+      );
+      if (currentLevel.length === 0) break;
+    }
+
+    // Return all matched elements and their DOI/SDI/DAI descendants so the full subtree renders
+    return [
+      ...currentLevel,
+      ...currentLevel.flatMap(el =>
+        Array.from(el.querySelectorAll('DOI, SDI, DAI')),
+      ),
+    ];
+  }
+
+  private searchHierarchicalTemplates(tokens: string[]): string[] {
+    if (!this.ied || !this.doc) return [];
+
+    const [firstToken, ...nameTokens] = tokens;
+
+    // Find all LN instances matching the first token to determine relevant template paths to consider from the cache
+    const lnPaths: string[] = [];
+    Array.from(
+      this.ied.querySelectorAll(
+        ':scope > AccessPoint > Server > LDevice > LN, :scope > AccessPoint > Server > LDevice > LN0',
+      ),
+    )
+      .filter(ln => firstToken === '*' || matchesLNToken(ln, firstToken))
+      .forEach(ln => {
+        const lnTypeId = ln.getAttribute('lnType');
+        if (!lnTypeId) return;
+        const lnType = this.doc!.querySelector(
+          `:root > DataTypeTemplates > LNodeType[id="${lnTypeId}"]`,
+        );
+        if (!lnType) return;
+        const lnPath = `${ln.tagName} ${identity(ln)}`;
+        lnPaths.push(lnPath);
+        getDataModel(lnType, [lnPath]);
+      });
+
+    if (lnPaths.length === 0) return [];
+
+    // Check cached paths for all template elements against the relevant LN paths and token sequence
+    const matchingPaths: string[] = [];
+    Array.from(
+      this.doc.querySelectorAll(':root > DataTypeTemplates *'),
+    ).forEach(element => {
+      const cachedPaths = cache.get(element) as Set<string> | undefined;
+      if (!cachedPaths || cachedPaths.size === 0) return;
+      [...cachedPaths].forEach(path => {
+        if (
+          !matchingPaths.includes(path) &&
+          lnPaths.some(lnPath =>
+            pathHasPrefixAndTokens(path, lnPath, nameTokens),
+          )
+        ) {
+          matchingPaths.push(path);
+        }
+      });
+    });
+
+    return matchingPaths;
+  }
+
   private performSearch(searchTerm: string) {
     this.searchTerm = searchTerm;
     const newPathsToRender: string[] = [];
     if (!this.ied || !this.doc) return;
 
-    [...this.searchSelectorIED(), ...this.searchSelectorTemplates()].forEach(
-      element => {
-        if (element.tagName === 'LDevice') {
-          const path = identity(element) as string;
-          if (!newPathsToRender.includes(path)) {
-            newPathsToRender.push(path);
-          }
-        } else if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
-          const path = getInitializedEltPath(element);
-          if (!newPathsToRender.includes(path)) {
-            newPathsToRender.push(path);
-          }
-        }
-        cache.get(element)?.forEach((path: string) => {
-          if (!newPathsToRender.includes(path)) {
-            newPathsToRender.push(path);
+    const tokens = this.parseSearchTokens();
+    const useInstances = true;
+    const useTemplates = this.searchScope !== 'instances';
+
+    const addPath = (path: string) => {
+      if (!newPathsToRender.includes(path)) newPathsToRender.push(path);
+    };
+
+    if (tokens.length > 1) {
+      if (useInstances) {
+        this.searchHierarchicalIED(tokens).forEach(element => {
+          if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
+            addPath(getInitializedEltPath(element));
           }
         });
-      },
-    );
+      }
+      if (useTemplates) {
+        this.searchHierarchicalTemplates(tokens).forEach(addPath);
+      }
+    } else {
+      [
+        ...(useInstances ? this.searchSelectorIED() : []),
+        ...(useInstances ? this.searchSelectorIEDValues() : []),
+        ...(useTemplates ? this.searchSelectorTemplates() : []),
+      ].forEach(element => {
+        if (element.tagName === 'LDevice') {
+          addPath(identity(element) as string);
+        } else if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
+          addPath(getInitializedEltPath(element));
+        }
+        cache.get(element)?.forEach((path: string) => addPath(path));
+      });
+    }
 
     this.pathsToRender = newPathsToRender;
     this.requestUpdate();
@@ -1356,6 +1510,32 @@ export class IedEditor extends LitElement {
                   </md-icon-button>
                 </md-filled-text-field>
               </div>
+              <div class="search-settings">
+                <p>Scope:</p>
+                <div id="search-mode">
+                  ${(
+                    [
+                      ['all', 'All'],
+                      ['instances', 'Instantiated'],
+                    ] as const
+                  ).map(
+                    ([value, label]) => html`
+                      <label>
+                        <md-radio
+                          name="search-scope"
+                          value=${value}
+                          ?checked=${this.searchScope === value}
+                          @change=${() => {
+                            this.searchScope = value;
+                            this.performSearch(this.searchTerm);
+                          }}
+                        ></md-radio>
+                        ${label}
+                      </label>
+                    `,
+                  )}
+                </div>
+              </div>
             </div>
 
             ${Array.from(
@@ -1460,6 +1640,7 @@ export class IedEditor extends LitElement {
     .search-settings {
       display: flex;
       align-items: center;
+      gap: 1rem;
     }
 
     .search-settings p {
@@ -1471,7 +1652,7 @@ export class IedEditor extends LitElement {
       display: flex;
       align-self: center;
       align-items: center;
-      margin-bottom: auto;
+      gap: 1rem;
     }
 
     label {
