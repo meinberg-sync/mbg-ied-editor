@@ -19,6 +19,7 @@ import type { EditField } from './components/edit-dialog.js';
 
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
+import '@material/web/iconbutton/outlined-icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/radio/radio.js';
 import '@material/web/progress/circular-progress.js';
@@ -320,6 +321,8 @@ export class IedEditor extends LitElement {
 
   @state() private searchScope: 'all' | 'instances' = 'all';
 
+  @state() private searchSettingsOpen = false;
+
   @state() private pendingDeleteLN: Element | null = null;
 
   @state() private pendingDeleteFCDAs: Element[] = [];
@@ -553,6 +556,10 @@ export class IedEditor extends LitElement {
     searchInput.value = '';
 
     this.requestUpdate();
+  }
+
+  private toggleSearchSettings() {
+    this.searchSettingsOpen = !this.searchSettingsOpen;
   }
 
   private instantiatePath(path: { name: string; tag: string }[], ln: Element) {
@@ -1490,8 +1497,16 @@ export class IedEditor extends LitElement {
           </main>`
         : html`<main>
             <div class="search-container">
-              <div class="search-field">
-                <md-filled-text-field
+              <div
+                class="${classMap({
+                  'search-field': true,
+                  'has-term': !!this.searchTerm,
+                })}"
+              >
+                <md-icon class="search-icon" slot="leading-icon"
+                  >search</md-icon
+                >
+                <md-outlined-text-field
                   class="search-input"
                   label="Search"
                   @input=${(e: Event) => {
@@ -1499,18 +1514,33 @@ export class IedEditor extends LitElement {
                     this.debounceSearch(searchInput);
                   }}
                 >
-                  <md-icon slot="leading-icon">search</md-icon>
-                  <md-icon-button
-                    aria-label="Clear search"
-                    slot="trailing-icon"
-                    title="Clear search"
-                    @click=${() => this.resetSearch()}
-                  >
-                    <md-icon>clear</md-icon>
-                  </md-icon-button>
-                </md-filled-text-field>
+                </md-outlined-text-field>
+                <md-outlined-icon-button
+                  aria-label="Clear search"
+                  title="Clear search"
+                  class="clear-btn"
+                  ?disabled=${!this.searchTerm}
+                  @click=${() => this.resetSearch()}
+                >
+                  <md-icon>clear</md-icon>
+                </md-outlined-icon-button>
+                <md-outlined-icon-button
+                  aria-label="Search settings"
+                  title="Search settings"
+                  @click=${() => this.toggleSearchSettings()}
+                  ><md-icon
+                    >${this.searchSettingsOpen
+                      ? 'filter_alt_off'
+                      : 'filter_alt'}</md-icon
+                  ></md-outlined-icon-button
+                >
               </div>
-              <div class="search-settings">
+              <div
+                class="${classMap({
+                  'search-settings': true,
+                  open: this.searchSettingsOpen,
+                })}"
+              >
                 <p>Scope:</p>
                 <div id="search-mode">
                   ${(
@@ -1600,6 +1630,9 @@ export class IedEditor extends LitElement {
       --md-icon-button-hover-icon-color: var(--oscd-base00);
       --md-icon-button-hover-state-layer-opacity: 1;
 
+      --md-outlined-icon-button-size: 24px;
+      --md-outlined-icon-button-container-shape: 10px;
+
       --oscd-primary: var(--oscd-theme-primary, #2aa198);
       --oscd-secondary: var(--oscd-theme-secondary, #6c71c4);
       --oscd-error: var(--oscd-theme-error, #dc322f);
@@ -1632,15 +1665,65 @@ export class IedEditor extends LitElement {
       width: 300px;
     }
 
+    .search-container {
+      width: fit-content;
+      background: var(--oscd-base3);
+      border-radius: 10px;
+    }
+
     .search-field {
       display: flex;
       align-items: center;
+      width: max-content;
+      padding: 0.5rem;
+    }
+
+    .search-field .search-icon {
+      padding: 0 8px;
+    }
+
+    .clear-btn {
+      max-width: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition:
+        max-width 0.2s ease,
+        opacity 0.2s ease;
+    }
+
+    .has-term .clear-btn {
+      max-width: 40px;
+      opacity: 1;
+      margin-right: 0.5rem;
+    }
+
+    .search-input {
+      width: 400px;
+      min-width: 0;
+      transition: width 0.2s ease;
+      margin: 0 0.5rem;
+
+      --md-outlined-text-field-top-space: 8px;
+      --md-outlined-text-field-bottom-space: 8px;
+    }
+
+    .has-term .search-input {
+      width: 376px;
     }
 
     .search-settings {
       display: flex;
       align-items: center;
       gap: 1rem;
+      padding: 0 1rem;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.25s ease-out;
+    }
+
+    .search-settings.open {
+      max-height: 4rem;
+      transition: max-height 0.25s ease-in;
     }
 
     .search-settings p {
