@@ -23418,6 +23418,16 @@ See www.iec.ch/CCv1 for copyright details
       width: max-content;
     }
 
+    details:first-of-type {
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+    }
+
+    details:last-of-type {
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+    }
+
     md-filled-text-field {
       width: 300px;
     }
