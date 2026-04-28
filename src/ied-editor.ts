@@ -1654,11 +1654,21 @@ export class IedEditor extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 1rem;
-      padding-bottom: var(--mbg-ied-editor-spacing);
+      margin-top: 1rem;
     }
 
     main > details {
       width: max-content;
+    }
+
+    details:first-of-type {
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+    }
+
+    details:last-of-type {
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
     }
 
     md-filled-text-field {
@@ -1785,7 +1795,6 @@ export class IedEditor extends LitElement {
 
     summary.instantiated {
       color: var(--oscd-primary);
-      align-items: baseline;
     }
 
     summary.instantiated.hide-marker {
@@ -1793,7 +1802,7 @@ export class IedEditor extends LitElement {
     }
 
     summary.instantiated > .model-key-container.has-values {
-      align-items: baseline;
+      align-items: center;
     }
 
     summary.uninitialized {
@@ -1843,13 +1852,13 @@ export class IedEditor extends LitElement {
 
     .model-details {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 0.5rem;
     }
 
     .model-actions {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 0.5rem;
     }
 
@@ -1865,8 +1874,13 @@ export class IedEditor extends LitElement {
 
     .render-value-container {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 0.5rem;
+    }
+
+    .render-value-actions {
+      display: flex;
+      align-items: center;
     }
 
     .value-error {

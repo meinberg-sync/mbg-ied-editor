@@ -11,6 +11,7 @@ import { IedEditor } from './ied-editor.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/select/filled-select.js';
+import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
 import '@material/web/textfield/filled-text-field.js';
 
@@ -151,51 +152,53 @@ export default class MbgIedEditor extends LitElement {
 
     return html`
       <main>
-        <div class="ied-name-container">
-          <md-filled-select
-            id="ied-selector"
-            label="Select IED"
-            aria-labelledby="group-title"
-            @change=${this.updateEditorDisplay}
-          >
-            <md-select-option value="" class="placeholder">
-              <div slot="headline"></div>
-            </md-select-option>
-            ${repeat(
-              manufacturers,
-              manufacturer => manufacturer,
-              manufacturer => html`
-                <h3 id="group-title">${manufacturer}</h3>
+        <div class="ied-name-header">
+          <md-icon class="ied-icon">network_intel_node</md-icon>
+          <div class="ied-name-container">
+            <div class="ied-select-container">
+              <md-outlined-select
+                id="ied-selector"
+                label="Select IED"
+                aria-labelledby="group-title"
+                @change=${this.updateEditorDisplay}
+              >
+                <md-select-option value="" class="placeholder">
+                  <div slot="headline"></div>
+                </md-select-option>
                 ${repeat(
-                  iedsByManufacturer[manufacturer],
-                  ied => ied,
-                  ied => html`
-                    <md-select-option
-                      value="${ied.getAttribute('name') as string}"
-                    >
-                      <div slot="headline">${ied.getAttribute('name')}</div>
-                    </md-select-option>
+                  manufacturers,
+                  manufacturer => manufacturer,
+                  manufacturer => html`
+                    <h3 id="group-title">${manufacturer}</h3>
+                    ${repeat(
+                      iedsByManufacturer[manufacturer],
+                      ied => ied,
+                      ied => html`
+                        <md-select-option
+                          value="${ied.getAttribute('name') as string}"
+                        >
+                          <div slot="headline">${ied.getAttribute('name')}</div>
+                        </md-select-option>
+                      `,
+                    )}
                   `,
                 )}
-              `,
-            )}
-          </md-filled-select>
-
-          <div class="ied-input-container">
-            <div class="ied-button-container">
-              <md-icon-button
-                aria-label="Edit IED Name"
-                class="hidden-input"
-                id="edit-name-button"
-                @click=${() => this.showIedNameInput()}
-              >
-                <md-icon>edit</md-icon>
-              </md-icon-button>
-              <span id="edit-name-tooltip">Click to edit the IED name</span>
+              </md-outlined-select>
+              <div class="ied-button-container">
+                <md-outlined-icon-button
+                  aria-label="Edit IED Name"
+                  class="hidden-input"
+                  id="edit-name-button"
+                  @click=${() => this.showIedNameInput()}
+                >
+                  <md-icon>edit</md-icon>
+                </md-outlined-icon-button>
+                <span id="edit-name-tooltip">Click to edit the IED name</span>
+              </div>
             </div>
 
-            <div class="hidden-input" id="ied-name-input">
-              <md-filled-text-field
+            <div id="ied-name-input">
+              <md-outlined-text-field
                 class="ied-name"
                 label="Edit IED Name"
                 value="${this.ied?.getAttribute('name') as string}"
@@ -216,7 +219,7 @@ export default class MbgIedEditor extends LitElement {
                 >
                   <md-icon>save_as</md-icon>
                 </md-icon-button>
-              </md-filled-text-field>
+              </md-outlined-text-field>
             </div>
           </div>
         </div>
@@ -270,6 +273,8 @@ export default class MbgIedEditor extends LitElement {
       --md-icon-button-hover-icon-color: var(--oscd-base00);
       --md-icon-button-hover-state-layer-opacity: 1;
 
+      --md-outlined-icon-button-container-shape: 10px;
+
       --oscd-primary: var(--oscd-theme-primary, #2aa198);
       --oscd-secondary: var(--oscd-theme-secondary, #6c71c4);
       --oscd-error: var(--oscd-theme-error, #dc322f);
@@ -289,22 +294,41 @@ export default class MbgIedEditor extends LitElement {
 
     main {
       padding: 1rem;
-      padding-bottom: 0;
       margin: 1rem;
       background-color: var(--oscd-base2);
       color: var(--oscd-base01);
       font-family: var(--oscd-text-font);
     }
 
-    .ied-name-container {
+    .ied-name-header {
       display: flex;
       align-items: center;
-      padding-bottom: 1rem;
-      column-gap: 0.5rem;
+      width: min-content;
+      background: var(--oscd-base3);
+      gap: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 10px;
+    }
+
+    .ied-name-container {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ied-select-container {
+      display: flex;
+      align-items: center;
+    }
+
+    .ied-icon {
+      padding: 0 8px;
     }
 
     #ied-selector {
-      --md-filled-select-text-field-input-text-size: 18px;
+      height: 40px;
+
+      --md-outlined-select-text-field-input-text-line-height: 8px;
+      --md-outlined-select-text-field-label-text-line-height: 12px;
     }
 
     .placeholder {
@@ -316,13 +340,8 @@ export default class MbgIedEditor extends LitElement {
       margin: 0.5rem;
     }
 
-    .ied-input-container {
-      display: flex;
-      align-items: center;
-      column-gap: 0.5rem;
-    }
-
     .ied-button-container {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -330,21 +349,40 @@ export default class MbgIedEditor extends LitElement {
 
     .hidden-input {
       opacity: 0;
-      height: 0;
+      max-width: 0;
       overflow: hidden;
       transition:
-        opacity 0.5s ease,
-        height 0.5s ease;
+        opacity 0.35s ease,
+        max-width 0.35s ease;
     }
 
     .hidden-input.show {
       opacity: 1;
-      height: auto;
+      max-width: 600px;
+      overflow: visible;
     }
 
-    .ied-name md-icon-button {
-      --md-icon-button-hover-state-layer-color: var(--oscd-base2);
-      --md-icon-button-hover-icon-color: var(--oscd-base01);
+    #edit-name-button.show {
+      margin-left: 0.5rem;
+    }
+
+    #ied-name-input {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.25s ease-out;
+    }
+
+    #ied-name-input.show {
+      max-height: 5rem;
+      padding-top: 0.5rem;
+      margin-top: 0.5rem;
+      transition: max-height 0.25s ease-in;
+    }
+
+    .ied-name {
+      width: 100%;
+      --md-outlined-text-field-top-space: 8px;
+      --md-outlined-text-field-bottom-space: 8px;
     }
 
     #edit-name-tooltip {
@@ -356,11 +394,15 @@ export default class MbgIedEditor extends LitElement {
       border-radius: 6px;
       border: 1px solid var(--oscd-base00);
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+      white-space: nowrap;
 
-      /* Position the tooltip */
+      /* Position to the right of the button */
       position: absolute;
+      left: 100%;
+      top: 50%;
+      transform: translateY(-50%);
+      margin-left: 12px;
       z-index: 1;
-      margin-top: 100px;
 
       /* Fade in and out */
       opacity: 0;
@@ -375,12 +417,12 @@ export default class MbgIedEditor extends LitElement {
     #edit-name-tooltip::after {
       content: ' ';
       position: absolute;
-      bottom: 100%; /* At the top of the tooltip */
-      left: 50%;
-      margin-left: -10px;
+      right: 100%;
+      top: 50%;
+      margin-top: -10px;
       border-width: 10px;
       border-style: solid;
-      border-color: transparent transparent var(--oscd-base00) transparent;
+      border-color: transparent var(--oscd-base00) transparent transparent;
     }
   `;
 }
