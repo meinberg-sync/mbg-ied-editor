@@ -11,6 +11,16 @@ import {
   SetTextContent,
 } from '@omicronenergy/oscd-api';
 import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
+import {
+  dataModelPathCache,
+  DataModel,
+  debounce,
+  getDataModel,
+  getInitializedEltPath,
+  matchesLNToken,
+  matchesNameToken,
+  pathHasPrefixAndTokens,
+} from './utils/ied-data-model.js';
 
 import 'mbg-val-input/mbg-val-input.js';
 import './components/alert-dialog.js';
@@ -26,22 +36,7 @@ import '@material/web/progress/circular-progress.js';
 import '@material/web/dialog/dialog.js';
 import '@material/web/button/text-button.js';
 
-const cache = new WeakMap();
-
-type DataModel = Map<Element, DataModel>;
-
 type Values = Map<Element, Values | Element[]>;
-
-function debounce(callback: (...args: unknown[]) => void, delay = 100) {
-  let timeout: number;
-
-  return (...args: unknown[]) => {
-    clearTimeout(timeout);
-    timeout = window.setTimeout(() => {
-      callback(...args);
-    }, delay);
-  };
-}
 
 function handleModelExpand(e: Event) {
   const button = e.target as HTMLButtonElement;
@@ -71,25 +66,6 @@ function handleModelExpand(e: Event) {
       }
     }
   }
-}
-
-function getInitializedEltPath(element: Element): string {
-  let path = [`${element.getAttribute('name')}`];
-
-  // traverse through parent elements until an LN is found
-  let parentElt = element.parentElement as Element;
-  while (parentElt) {
-    if (parentElt.tagName === 'LN' || parentElt.tagName === 'LN0') {
-      path = [`${parentElt.tagName} ${identity(parentElt)}`].concat(path);
-      break;
-    }
-    path = [`${parentElt.getAttribute('name')}`].concat(path);
-    parentElt = parentElt.parentNode as Element;
-  }
-
-  const stringPath = path.join(' ');
-
-  return stringPath;
 }
 
 function getInputPath(
@@ -178,49 +154,6 @@ function getValues(
   return values;
 }
 
-function getDataModel(dataType: Element, path: string[]): DataModel {
-  // a datatype can have multiple paths
-  const stringPath = path.join(' ');
-  if (!cache.has(dataType)) {
-    cache.set(dataType, new Set());
-  }
-  if (!cache.get(dataType).has(stringPath)) {
-    cache.get(dataType).add(stringPath);
-  }
-
-  const children = Array.from(dataType.children).filter(child =>
-    ['DO', 'DA', 'SDO', 'BDA'].includes(child.tagName),
-  );
-  const dataModel = new Map<Element, DataModel>();
-
-  for (const child of children) {
-    if (!cache.has(child)) {
-      cache.set(child, new Set());
-    }
-    const childStringPath = path
-      .concat(child.getAttribute('name') as string)
-      .join(' ');
-    if (!cache.get(child).has(childStringPath)) {
-      cache.get(child).add(childStringPath);
-    }
-
-    const childType = dataType
-      ?.closest('DataTypeTemplates')
-      ?.querySelector(`:scope > [id="${child.getAttribute('type')}"]`);
-    if (childType)
-      dataModel.set(
-        child,
-        getDataModel(
-          childType,
-          path.concat(child.getAttribute('name') as string),
-        ),
-      );
-    else dataModel.set(child, new Map());
-  }
-
-  return dataModel;
-}
-
 function getSGCB(ld: Element): Element | null {
   if (ld.querySelector(':scope > LN0 > SettingControl')) {
     return ld.querySelector(':scope > LN0 > SettingControl') as Element;
@@ -261,47 +194,6 @@ function isReadOnly(da: Element | null): boolean {
 
   const canImport = (da.getAttribute('valImport') as string) === 'false';
   return isKindRO && canImport;
-}
-
-function matchesLNToken(ln: Element, token: string): boolean {
-  if (token === '*') return true;
-  const lower = token.toLowerCase();
-  const lnClass = (ln.getAttribute('lnClass') ?? '').toLowerCase();
-  const inst = (ln.getAttribute('inst') ?? '').toLowerCase();
-  return (
-    lnClass.includes(lower) ||
-    inst.includes(lower) ||
-    `${lnClass}${inst}`.includes(lower)
-  );
-}
-
-function matchesNameToken(element: Element, token: string): boolean {
-  if (token === '*') return true;
-  return (element.getAttribute('name') ?? '')
-    .toLowerCase()
-    .includes(token.toLowerCase());
-}
-
-function pathHasPrefixAndTokens(
-  path: string,
-  lnPath: string,
-  nameTokens: string[],
-): boolean {
-  // Check whether a cached path string matches a known LN path prefix
-  if (!path.startsWith(lnPath)) return false;
-
-  // If there are no name tokens, any path with the correct LN prefix matches
-  if (nameTokens.length === 0) return path.length > lnPath.length;
-
-  // Split the remainder of the path into tokens and check for matches in order
-  const remainder = path.slice(lnPath.length + 1); // +1 to skip the separating space
-  const nameParts = remainder.split(' ');
-
-  return nameTokens.every((token, i) => {
-    const part = nameParts[i];
-    if (!part) return false;
-    return token === '*' || part.toLowerCase().includes(token.toLowerCase());
-  });
 }
 
 export class IedEditor extends LitElement {
@@ -482,7 +374,9 @@ export class IedEditor extends LitElement {
     Array.from(
       this.doc.querySelectorAll(':root > DataTypeTemplates *'),
     ).forEach(element => {
-      const cachedPaths = cache.get(element) as Set<string> | undefined;
+      const cachedPaths = dataModelPathCache.get(element) as
+        | Set<string>
+        | undefined;
       if (!cachedPaths || cachedPaths.size === 0) return;
       [...cachedPaths].forEach(path => {
         if (
@@ -534,7 +428,9 @@ export class IedEditor extends LitElement {
         } else if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
           addPath(getInitializedEltPath(element));
         }
-        cache.get(element)?.forEach((path: string) => addPath(path));
+        dataModelPathCache
+          .get(element)
+          ?.forEach((path: string) => addPath(path));
       });
     }
 
