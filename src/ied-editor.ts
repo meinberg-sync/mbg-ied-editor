@@ -14,6 +14,9 @@ import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 
 import {
   DataModel,
+  Values,
+  hasValues,
+  getValues,
   getDataModel,
   getInitializedEltPath,
 } from './utils/ied-data-model.js';
@@ -32,8 +35,6 @@ import '@material/web/icon/icon.js';
 import '@material/web/progress/circular-progress.js';
 import '@material/web/dialog/dialog.js';
 import '@material/web/button/text-button.js';
-
-type Values = Map<Element, Values | Element[]>;
 
 function handleModelExpand(e: Event) {
   const button = e.target as HTMLButtonElement;
@@ -109,46 +110,6 @@ function findInstanceToRemove(element: Element) {
   }
 
   return findInstanceToRemove(parent);
-}
-
-function hasValues(values: Values | Element[] | undefined): boolean {
-  return Array.isArray(values) && values.length > 0;
-}
-
-function getValues(
-  instance: Element,
-  dataModel: DataModel,
-): Values | Element[] {
-  // instance -> DOI -> SDI* -> DAI -> Val
-  const childVals = Array.from(instance.children).filter(
-    child => child.tagName === 'Val',
-  );
-  if (childVals.length > 0) {
-    return childVals;
-  }
-
-  const children = Array.from(instance.children).filter(child =>
-    ['DOI', 'SDI', 'DAI'].includes(child.tagName),
-  );
-
-  const childNames = children.map(child => child.getAttribute('name'));
-  const values = new Map<Element, Values | Element[]>();
-
-  dataModel.forEach((value: DataModel, key: Element) => {
-    if (childNames.includes(key.getAttribute('name'))) {
-      values.set(
-        key,
-        getValues(
-          children.find(
-            child => child.getAttribute('name') === key.getAttribute('name'),
-          ) as Element,
-          value,
-        ),
-      );
-    }
-  });
-
-  return values;
 }
 
 function getSGCB(ld: Element): Element | null {
