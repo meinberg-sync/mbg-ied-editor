@@ -4,12 +4,54 @@ export const dataModelPathCache = new WeakMap();
 
 export type DataModel = Map<Element, DataModel>;
 
+export type Values = Map<Element, Values | Element[]>;
+
 export function debounce(callback: (...args: unknown[]) => void, delay = 100) {
   let timeout: number;
   return (...args: unknown[]) => {
     clearTimeout(timeout);
     timeout = window.setTimeout(() => callback(...args), delay);
   };
+}
+
+export function hasValues(values: Values | Element[] | undefined): boolean {
+  return Array.isArray(values) && values.length > 0;
+}
+
+export function getValues(
+  instance: Element,
+  dataModel: DataModel,
+): Values | Element[] {
+  // instance -> DOI -> SDI* -> DAI -> Val
+  const childVals = Array.from(instance.children).filter(
+    child => child.tagName === 'Val',
+  );
+  if (childVals.length > 0) {
+    return childVals;
+  }
+
+  const children = Array.from(instance.children).filter(child =>
+    ['DOI', 'SDI', 'DAI'].includes(child.tagName),
+  );
+
+  const childNames = children.map(child => child.getAttribute('name'));
+  const values = new Map<Element, Values | Element[]>();
+
+  dataModel.forEach((value: DataModel, key: Element) => {
+    if (childNames.includes(key.getAttribute('name'))) {
+      values.set(
+        key,
+        getValues(
+          children.find(
+            child => child.getAttribute('name') === key.getAttribute('name'),
+          ) as Element,
+          value,
+        ),
+      );
+    }
+  });
+
+  return values;
 }
 
 export function getInitializedEltPath(element: Element): string {
