@@ -1303,7 +1303,8 @@ export class IedEditor extends LitElement {
     }
 
     .desc {
-      margin: 8px 0;
+      padding: 8px 0;
+      margin: auto;
       font-size: 16px;
       font-style: italic;
     }
