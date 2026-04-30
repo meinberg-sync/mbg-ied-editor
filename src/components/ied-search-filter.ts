@@ -54,7 +54,7 @@ export class IedSearchFilter extends LitElement {
     if (!this.ied) return [];
 
     const lowerCaseTerm = this.searchTerm.toLowerCase();
-    const attributes = ['inst', 'desc', 'lnClass', 'lnType'];
+    const attributes = ['inst', 'desc', 'lnClass', 'lnType', 'name'];
 
     return Array.from(
       this.ied.querySelectorAll(':scope > AccessPoint > Server *'),
