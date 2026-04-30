@@ -23684,7 +23684,8 @@ See www.iec.ch/CCv1 for copyright details
     }
 
     .desc {
-      margin: 8px 0;
+      padding: 8px 0;
+      margin: auto;
       font-size: 16px;
       font-style: italic;
     }
