@@ -21,6 +21,18 @@ import {
   getInitializedEltPath,
 } from './utils/ied-data-model.js';
 
+import {
+  findInstanceToRemove,
+  getInputPath,
+  getInstanceDescription,
+  getMostNestedElement,
+  getSGCB,
+  getTemplateDescription,
+  getTemplateValue,
+  isReadOnly,
+  setTag,
+} from './utils/ied-scl.js';
+
 import type { EditField } from './components/edit-dialog.js';
 import type { SearchChangedDetail } from './components/ied-search-filter.js';
 
@@ -66,24 +78,6 @@ function handleModelExpand(e: Event) {
   }
 }
 
-function getInputPath(
-  ln: Element,
-  path: { name: string; tag: string }[],
-  sGroup: string,
-) {
-  const parentLD = (ln.parentNode as Element)?.getAttribute('inst');
-  const lnClass = ln.getAttribute('lnClass');
-  const lnInst = ln.getAttribute('inst');
-
-  let elementID = `${parentLD}-${lnClass}${lnInst}`;
-  for (let i = 0; i < path.length; i += 1) {
-    elementID += `-${path[i].name}`;
-    if (i === path.length - 1) elementID += sGroup;
-  }
-
-  return elementID;
-}
-
 function renderDataModelSpan(key: Element) {
   if (key.nodeName === 'DA' || key.nodeName === 'BDA') {
     return html`<span class="type"
@@ -97,61 +91,6 @@ function renderDataModelSpan(key: Element) {
     >${key.nodeName}
     <span class="subtype">(${key.getAttribute('type')})</span></span
   >`;
-}
-
-function findInstanceToRemove(element: Element) {
-  const parent = element.parentElement as Element;
-  const siblings = Array.from(parent.children).filter(
-    child => child.tagName === element.tagName,
-  );
-
-  if (siblings.length > 1 || !['DOI', 'SDI', 'DAI'].includes(parent.tagName)) {
-    return element;
-  }
-
-  return findInstanceToRemove(parent);
-}
-
-function getSGCB(ld: Element): Element | null {
-  if (ld.querySelector(':scope > LN0 > SettingControl')) {
-    return ld.querySelector(':scope > LN0 > SettingControl') as Element;
-  }
-
-  if (!ld.querySelector(':scope > LN0 > DOI[name="GrRef"]')) {
-    return null;
-  }
-
-  const setSrcRef = ld.querySelector(
-    ':scope > LN0 > DOI[name="GrRef"] > DAI[name="setSrcRef"] > Val',
-  );
-  const sgcbRef = setSrcRef?.textContent?.trim().replace(/^@/, '') ?? '';
-  const ldRef = ld
-    .closest('Server')!
-    .querySelector(`:scope > LDevice[inst="${sgcbRef}"]`);
-
-  return getSGCB(ldRef as Element);
-}
-
-function setTag(key: Element) {
-  let tag = 'DAI';
-
-  if (key.tagName === 'DO') {
-    tag = 'DOI';
-  } else if (key.tagName === 'SDO' || key.getAttribute('bType') === 'Struct') {
-    tag = 'SDI';
-  }
-
-  return tag;
-}
-
-function isReadOnly(da: Element | null): boolean {
-  if (!da) return false;
-
-  const isKindRO = (da.getAttribute('valKind') as string) === 'RO';
-  if (!da.getAttribute('valImport')) return isKindRO;
-
-  const canImport = (da.getAttribute('valImport') as string) === 'false';
-  return isKindRO && canImport;
 }
 
 export class IedEditor extends LitElement {
@@ -208,6 +147,10 @@ export class IedEditor extends LitElement {
     }
   }
 
+  private get dataTypeTemplates(): Element {
+    return this.doc?.querySelector(`:root > DataTypeTemplates`) as Element;
+  }
+
   private handleSearchChanged(e: CustomEvent<SearchChangedDetail>) {
     this.searchTerm = e.detail.searchTerm;
     this.pathsToRender = e.detail.pathsToRender;
@@ -242,108 +185,6 @@ export class IedEditor extends LitElement {
     }
 
     return { parent: instance, edits };
-  }
-
-  private getTemplateValue(ln: Element, path: { name: string; tag: string }[]) {
-    const template = this.doc?.querySelector(`:root > DataTypeTemplates`);
-    const lnTemplate = template?.querySelector(
-      `:scope > LNodeType[id="${ln.getAttribute('lnType')}"]`,
-    );
-    let nestedInst = lnTemplate?.querySelector(
-      `:scope > *[name="${path[0].name}"]`,
-    );
-
-    for (let i = 1; i < path.length; i += 1) {
-      const instType = nestedInst?.getAttribute('type');
-      const instTemplate = template?.querySelector(
-        `:scope > *[id="${instType}"]`,
-      );
-      nestedInst = instTemplate?.querySelector(
-        `:scope > *[name="${path[i].name}"]`,
-      );
-    }
-
-    if (nestedInst?.querySelector('Val')) {
-      return nestedInst?.querySelector('Val')?.textContent;
-    }
-
-    return '';
-  }
-
-  private getInstanceDescription(
-    target: Element,
-    host?: Element,
-    path: { name: string; tag: string }[] = [],
-  ) {
-    // if the instance is in a path, check if it has a description in the IED
-    let instantiatedDesc = '';
-    if (path.length > 0 && host) {
-      let childInstance = host.querySelector(
-        `:scope > DOI[name="${path[0].name}"]`,
-      );
-      for (let i = 1; i < path.length && childInstance; i += 1) {
-        childInstance = childInstance.querySelector(
-          `:scope > *[name="${path[i].name}"]`,
-        );
-      }
-
-      if (childInstance?.getAttribute('name') === target.getAttribute('name')) {
-        instantiatedDesc = childInstance?.getAttribute('desc') ?? '';
-      }
-    }
-
-    if (instantiatedDesc) {
-      return html`<p class="desc">${instantiatedDesc}</p>`;
-    }
-
-    // check if the instance itself has a description
-    if (target.getAttribute('desc')) {
-      return html`<p class="desc">${target.getAttribute('desc')}</p>`;
-    }
-
-    // check if the template has a description
-    const template = this.doc?.querySelector(`:root > DataTypeTemplates`);
-    let instTemplate = null;
-    if (target.nodeName === 'LN' || target.nodeName === 'LN0') {
-      instTemplate = template?.querySelector(
-        `:scope > LNodeType[id="${target.getAttribute('lnType')}"]`,
-      );
-    } else if (target.nodeName !== 'LDevice') {
-      instTemplate = template?.querySelector(
-        `:scope > *[id="${target.getAttribute('type')}"]`,
-      );
-    }
-
-    if (instTemplate?.getAttribute('desc')) {
-      return html`<p class="desc">${instTemplate?.getAttribute('desc')}</p>`;
-    }
-
-    return nothing;
-  }
-
-  private getMostNestedElt(
-    path: { name: string; tag: string }[],
-    lnType: string,
-  ): Element | null {
-    let parentName = path[0].name;
-    let parentElt = this.doc?.querySelector(
-      `:root > DataTypeTemplates > LNodeType[id="${lnType}"] > DO[name="${parentName}"]`,
-    );
-    let parentType = parentElt?.getAttribute('type') as string;
-
-    let i = 1;
-    for (; i < path.length; i += 1) {
-      parentName = path[i].name;
-      parentElt = this.doc?.querySelector(
-        `:root > DataTypeTemplates > *[id="${parentType}"] > *[name="${parentName}"]`,
-      );
-
-      if (i === path.length - 1) break;
-
-      parentType = parentElt?.getAttribute('type') as string;
-    }
-
-    return parentElt ?? null;
   }
 
   private deleteLN(ln: Element) {
@@ -593,8 +434,17 @@ export class IedEditor extends LitElement {
     const isSettingAttr = ['SG', 'SE'].includes(
       da.getAttribute('fc') as string,
     );
+
     if (!isSettingAttr) {
-      this.addValue(ln, path, this.getTemplateValue(ln, path) as string);
+      this.addValue(
+        ln,
+        path,
+        getTemplateValue(
+          this.dataTypeTemplates,
+          ln.getAttribute('lnType') as string,
+          path,
+        ) as string,
+      );
       return;
     }
 
@@ -602,7 +452,11 @@ export class IedEditor extends LitElement {
       this.addValue(
         ln,
         path,
-        this.getTemplateValue(ln, path) as string,
+        getTemplateValue(
+          this.dataTypeTemplates,
+          ln.getAttribute('lnType') as string,
+          path,
+        ) as string,
         i.toString(),
       );
     }
@@ -647,6 +501,21 @@ export class IedEditor extends LitElement {
     this.dispatchEvent(newEditEventV2(editMissingValues));
   }
 
+  private renderDescription(
+    target: Element,
+    host?: Element,
+    path: { name: string; tag: string }[] = [],
+  ) {
+    const desc =
+      getInstanceDescription(target, host, path) ||
+      getTemplateDescription(this.dataTypeTemplates, target);
+    if (desc) {
+      return html`<p class="desc">${desc}</p>`;
+    }
+
+    return nothing;
+  }
+
   private renderValueInputField(
     value: Element,
     ln: Element,
@@ -658,17 +527,18 @@ export class IedEditor extends LitElement {
     const sGroup = value.getAttribute('sGroup') || '';
     const label = isActSG ? `Val ${sGroup} (actSG)` : `Val ${sGroup ?? ''}`;
     const elementID = getInputPath(ln, path, sGroup || index);
-    const parentDA = this.getMostNestedElt(
-      path,
+    const parentDA = getMostNestedElement(
+      this.dataTypeTemplates,
       ln.getAttribute('lnType') as string,
+      path,
     );
     const bType = parentDA?.getAttribute('bType');
 
     // if it is an enum type, get the ordinal numbers and string labels
     if (bType === 'Enum') {
       const enumType = parentDA?.getAttribute('type');
-      const enumTypeElement = this.doc?.querySelector(
-        `:root > DataTypeTemplates > EnumType[id="${enumType}"]`,
+      const enumTypeElement = this.dataTypeTemplates?.querySelector(
+        `:scope > EnumType[id="${enumType}"]`,
       );
 
       const enumVals = enumTypeElement?.querySelectorAll('EnumVal') as NodeList;
@@ -706,9 +576,10 @@ export class IedEditor extends LitElement {
     actSG: number,
     path: { name: string; tag: string }[],
   ) {
-    const parentDA = this.getMostNestedElt(
-      path,
+    const parentDA = getMostNestedElement(
+      this.dataTypeTemplates,
       ln.getAttribute('lnType') as string,
+      path,
     );
     const parentFC = parentDA?.getAttribute('fc') as string;
     const readOnly =
@@ -840,8 +711,11 @@ export class IedEditor extends LitElement {
                       this.addValue(
                         ln,
                         path,
-                        (this.getTemplateValue(ln, path) as string) ||
-                          (activeValue?.textContent as string),
+                        (getTemplateValue(
+                          this.dataTypeTemplates,
+                          ln.getAttribute('lnType') as string,
+                          path,
+                        ) as string) || (activeValue?.textContent as string),
                         i.toString(),
                       );
                     }}
@@ -968,7 +842,7 @@ export class IedEditor extends LitElement {
               </div>
             </summary>
 
-            ${this.getInstanceDescription(
+            ${this.renderDescription(
               key,
               ln,
               path.concat({
@@ -1003,8 +877,8 @@ export class IedEditor extends LitElement {
   }
 
   private renderLN(ln: Element, numOfSGs: number, actSG: number) {
-    const lnType = this.doc?.querySelector(
-      `:root > DataTypeTemplates > LNodeType[id="${ln.getAttribute('lnType')}"]`,
+    const lnType = this.dataTypeTemplates?.querySelector(
+      `:scope > LNodeType[id="${ln.getAttribute('lnType')}"]`,
     ) as Element;
     if (!lnType) return nothing;
 
@@ -1046,7 +920,7 @@ export class IedEditor extends LitElement {
             </div>
           </div>
         </summary>
-        ${this.getInstanceDescription(ld)}
+        ${this.renderDescription(ld)}
         ${Array.from(ld.querySelectorAll(':scope > LN0, :scope > LN'))
           .filter(
             ln =>
@@ -1088,7 +962,7 @@ export class IedEditor extends LitElement {
                     </div>
                   </div>
                 </summary>
-                ${this.getInstanceDescription(ln)}
+                ${this.renderDescription(ln)}
                 ${this.renderLN(ln, numOfSGs, actSG)}
               </details>
             `,
@@ -1173,7 +1047,7 @@ export class IedEditor extends LitElement {
                       </div>
                     </div>
                   </summary>
-                  ${this.getInstanceDescription(server.parentElement!)}
+                  ${this.renderDescription(server.parentElement!)}
                   ${Array.from(server.querySelectorAll(':scope > LDevice'))
                     .filter(
                       ld =>
