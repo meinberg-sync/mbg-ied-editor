@@ -108,6 +108,8 @@ export class IedEditor extends LitElement {
 
   @property({ type: Boolean }) loadingIED = false;
 
+  @state() private scopeActive = false;
+
   @state() private pendingDeleteLN: Element | null = null;
 
   @state() private pendingDeleteFCDAs: Element[] = [];
@@ -138,6 +140,7 @@ export class IedEditor extends LitElement {
     if (changed.has('doc') || changed.has('docName') || changed.has('ied')) {
       this.pathsToRender = [];
       this.searchTerm = '';
+      this.scopeActive = false;
       this.loadingIED = true;
 
       setTimeout(() => {
@@ -154,6 +157,7 @@ export class IedEditor extends LitElement {
   private handleSearchChanged(e: CustomEvent<SearchChangedDetail>) {
     this.searchTerm = e.detail.searchTerm;
     this.pathsToRender = e.detail.pathsToRender;
+    this.scopeActive = e.detail.scopeActive;
   }
 
   private instantiatePath(path: { name: string; tag: string }[], ln: Element) {
@@ -742,7 +746,7 @@ export class IedEditor extends LitElement {
     return Array.from(dataModel.entries())
       .filter(
         ([key]: [Element, DataModel]) =>
-          !this.searchTerm ||
+          (!this.searchTerm && !this.scopeActive) ||
           this.pathsToRender.find(
             renderPath =>
               renderPath.startsWith(`${ln.tagName} ${identity(ln)}`) &&
@@ -924,7 +928,7 @@ export class IedEditor extends LitElement {
         ${Array.from(ld.querySelectorAll(':scope > LN0, :scope > LN'))
           .filter(
             ln =>
-              !this.searchTerm ||
+              (!this.searchTerm && !this.scopeActive) ||
               this.pathsToRender.find(path =>
                 path.startsWith(`${ln.tagName} ${identity(ln)}`),
               ),
@@ -1051,7 +1055,7 @@ export class IedEditor extends LitElement {
                   ${Array.from(server.querySelectorAll(':scope > LDevice'))
                     .filter(
                       ld =>
-                        !this.searchTerm ||
+                        (!this.searchTerm && !this.scopeActive) ||
                         this.pathsToRender.find(path =>
                           path.includes(identity(ld) as string),
                         ),

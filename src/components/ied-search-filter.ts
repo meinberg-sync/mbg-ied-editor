@@ -21,6 +21,7 @@ import '@material/web/radio/radio.js';
 export interface SearchChangedDetail {
   searchTerm: string;
   pathsToRender: string[];
+  scopeActive: boolean;
 }
 
 export class IedSearchFilter extends LitElement {
@@ -192,29 +193,33 @@ export class IedSearchFilter extends LitElement {
     if (!this.ied || !this.doc) return;
 
     const tokens = this.parseSearchTokens();
-    const useInstances = true;
     const useTemplates = this.searchScope !== 'instances';
+    const scopeActive = this.searchScope === 'instances';
 
     const addPath = (path: string) => {
       if (!newPathsToRender.includes(path)) newPathsToRender.push(path);
     };
 
-    if (tokens.length > 1) {
-      if (useInstances) {
-        this.searchHierarchicalIED(tokens).forEach(element => {
-          if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
-            addPath(getInitializedEltPath(element));
-          }
-        });
-      }
+    if (!searchTerm && scopeActive) {
+      Array.from(
+        this.ied.querySelectorAll(
+          ':scope > AccessPoint > Server DOI, :scope > AccessPoint > Server SDI, :scope > AccessPoint > Server DAI',
+        ),
+      ).forEach(element => addPath(getInitializedEltPath(element)));
+    } else if (tokens.length > 1) {
+      this.searchHierarchicalIED(tokens).forEach(element => {
+        if (['DOI', 'SDI', 'DAI'].includes(element.tagName)) {
+          addPath(getInitializedEltPath(element));
+        }
+      });
 
       if (useTemplates) {
         this.searchHierarchicalTemplates(tokens).forEach(addPath);
       }
-    } else {
+    } else if (searchTerm) {
       [
-        ...(useInstances ? this.searchSelectorIED() : []),
-        ...(useInstances ? this.searchSelectorIEDValues() : []),
+        ...this.searchSelectorIED(),
+        ...this.searchSelectorIEDValues(),
         ...(useTemplates ? this.searchSelectorTemplates() : []),
       ].forEach(element => {
         if (element.tagName === 'LDevice') {
@@ -231,7 +236,7 @@ export class IedSearchFilter extends LitElement {
 
     this.dispatchEvent(
       new CustomEvent<SearchChangedDetail>('search-changed', {
-        detail: { searchTerm, pathsToRender: newPathsToRender },
+        detail: { searchTerm, pathsToRender: newPathsToRender, scopeActive },
         bubbles: true,
         composed: true,
       }),
