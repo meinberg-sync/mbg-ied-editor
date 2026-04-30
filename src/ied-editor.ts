@@ -21,6 +21,14 @@ import {
   getInitializedEltPath,
 } from './utils/ied-data-model.js';
 
+import {
+  findInstanceToRemove,
+  getInputPath,
+  getSGCB,
+  isReadOnly,
+  setTag,
+} from './utils/ied-scl.js';
+
 import type { EditField } from './components/edit-dialog.js';
 import type { SearchChangedDetail } from './components/ied-search-filter.js';
 
@@ -66,24 +74,6 @@ function handleModelExpand(e: Event) {
   }
 }
 
-function getInputPath(
-  ln: Element,
-  path: { name: string; tag: string }[],
-  sGroup: string,
-) {
-  const parentLD = (ln.parentNode as Element)?.getAttribute('inst');
-  const lnClass = ln.getAttribute('lnClass');
-  const lnInst = ln.getAttribute('inst');
-
-  let elementID = `${parentLD}-${lnClass}${lnInst}`;
-  for (let i = 0; i < path.length; i += 1) {
-    elementID += `-${path[i].name}`;
-    if (i === path.length - 1) elementID += sGroup;
-  }
-
-  return elementID;
-}
-
 function renderDataModelSpan(key: Element) {
   if (key.nodeName === 'DA' || key.nodeName === 'BDA') {
     return html`<span class="type"
@@ -97,61 +87,6 @@ function renderDataModelSpan(key: Element) {
     >${key.nodeName}
     <span class="subtype">(${key.getAttribute('type')})</span></span
   >`;
-}
-
-function findInstanceToRemove(element: Element) {
-  const parent = element.parentElement as Element;
-  const siblings = Array.from(parent.children).filter(
-    child => child.tagName === element.tagName,
-  );
-
-  if (siblings.length > 1 || !['DOI', 'SDI', 'DAI'].includes(parent.tagName)) {
-    return element;
-  }
-
-  return findInstanceToRemove(parent);
-}
-
-function getSGCB(ld: Element): Element | null {
-  if (ld.querySelector(':scope > LN0 > SettingControl')) {
-    return ld.querySelector(':scope > LN0 > SettingControl') as Element;
-  }
-
-  if (!ld.querySelector(':scope > LN0 > DOI[name="GrRef"]')) {
-    return null;
-  }
-
-  const setSrcRef = ld.querySelector(
-    ':scope > LN0 > DOI[name="GrRef"] > DAI[name="setSrcRef"] > Val',
-  );
-  const sgcbRef = setSrcRef?.textContent?.trim().replace(/^@/, '') ?? '';
-  const ldRef = ld
-    .closest('Server')!
-    .querySelector(`:scope > LDevice[inst="${sgcbRef}"]`);
-
-  return getSGCB(ldRef as Element);
-}
-
-function setTag(key: Element) {
-  let tag = 'DAI';
-
-  if (key.tagName === 'DO') {
-    tag = 'DOI';
-  } else if (key.tagName === 'SDO' || key.getAttribute('bType') === 'Struct') {
-    tag = 'SDI';
-  }
-
-  return tag;
-}
-
-function isReadOnly(da: Element | null): boolean {
-  if (!da) return false;
-
-  const isKindRO = (da.getAttribute('valKind') as string) === 'RO';
-  if (!da.getAttribute('valImport')) return isKindRO;
-
-  const canImport = (da.getAttribute('valImport') as string) === 'false';
-  return isKindRO && canImport;
 }
 
 export class IedEditor extends LitElement {
