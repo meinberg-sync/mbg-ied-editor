@@ -13,6 +13,8 @@ import {
   pathHasPrefixAndTokens,
 } from '../utils/ied-data-model.js';
 
+import './search-help-dialog.js';
+
 import '@material/web/textfield/outlined-text-field.js';
 import '@material/web/iconbutton/outlined-icon-button.js';
 import '@material/web/icon/icon.js';
@@ -35,6 +37,8 @@ export class IedSearchFilter extends LitElement {
   @state() private searchScope: 'all' | 'instances' = 'all';
 
   @state() private searchSettingsOpen = false;
+
+  @state() private helpOpen = false;
 
   protected updated(changed: Map<string, unknown>) {
     super.updated?.(changed);
@@ -298,6 +302,15 @@ export class IedSearchFilter extends LitElement {
                 : 'filter_alt'}</md-icon
             ></md-outlined-icon-button
           >
+          <md-outlined-icon-button
+            aria-label="Search help"
+            title="Search help"
+            class="search-help-btn"
+            @click=${() => {
+              this.helpOpen = true;
+            }}
+            ><md-icon>help_outline</md-icon></md-outlined-icon-button
+          >
         </div>
         <div
           class="${classMap({
@@ -327,6 +340,13 @@ export class IedSearchFilter extends LitElement {
           </md-outlined-segmented-button-set>
         </div>
       </div>
+
+      <ied-search-help
+        .open=${this.helpOpen}
+        @close=${() => {
+          this.helpOpen = false;
+        }}
+      ></ied-search-help>
     `;
   }
 
@@ -429,6 +449,10 @@ export class IedSearchFilter extends LitElement {
     .search-settings p {
       font-family: var(--oscd-theme-text-font);
       font-weight: bold;
+    }
+
+    .search-help-btn {
+      margin-left: 0.5rem;
     }
   `;
 }
