@@ -744,15 +744,24 @@ export class IedEditor extends LitElement {
     odd = false,
   ) {
     return Array.from(dataModel.entries())
-      .filter(
-        ([key]: [Element, DataModel]) =>
-          (!this.searchTerm && !this.scopeActive) ||
-          this.pathsToRender.find(
-            renderPath =>
-              renderPath.startsWith(`${ln.tagName} ${identity(ln)}`) &&
-              renderPath.includes(` ${key.getAttribute('name')}`),
-          ),
-      )
+      .filter(([key]: [Element, DataModel]) => {
+        if (!this.searchTerm && !this.scopeActive) {
+          return true;
+        }
+
+        // check if the current key or any of its children match the paths to render
+        const keyPath = [
+          `${ln.tagName} ${identity(ln)}`,
+          ...path.map(p => p.name),
+          key.getAttribute('name'),
+        ].join(' ');
+
+        // exact match or starts with the keyPath followed by a space (to avoid partial matches)
+        return !!this.pathsToRender.find(
+          renderPath =>
+            renderPath === keyPath || renderPath.startsWith(`${keyPath} `),
+        );
+      })
       .map(
         ([key, value]: [Element, DataModel]) =>
           html` <details
