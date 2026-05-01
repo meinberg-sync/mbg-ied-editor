@@ -16,7 +16,8 @@ import {
 import '@material/web/textfield/outlined-text-field.js';
 import '@material/web/iconbutton/outlined-icon-button.js';
 import '@material/web/icon/icon.js';
-import '@material/web/radio/radio.js';
+import '@material/web/labs/segmentedbuttonset/outlined-segmented-button-set.js';
+import '@material/web/labs/segmentedbutton/outlined-segmented-button.js';
 
 export interface SearchChangedDetail {
   searchTerm: string;
@@ -305,7 +306,7 @@ export class IedSearchFilter extends LitElement {
           })}"
         >
           <p>Scope:</p>
-          <div id="search-mode">
+          <md-outlined-segmented-button-set>
             ${(
               [
                 ['all', 'All'],
@@ -313,21 +314,17 @@ export class IedSearchFilter extends LitElement {
               ] as const
             ).map(
               ([value, label]) => html`
-                <label>
-                  <md-radio
-                    name="search-scope"
-                    value=${value}
-                    ?checked=${this.searchScope === value}
-                    @change=${() => {
-                      this.searchScope = value;
-                      this.performSearch(this.searchTerm);
-                    }}
-                  ></md-radio>
-                  ${label}
-                </label>
+                <md-outlined-segmented-button
+                  label=${label}
+                  ?selected=${this.searchScope === value}
+                  @click=${() => {
+                    this.searchScope = value;
+                    this.performSearch(this.searchTerm);
+                  }}
+                ></md-outlined-segmented-button>
               `,
             )}
-          </div>
+          </md-outlined-segmented-button-set>
         </div>
       </div>
     `;
@@ -340,6 +337,35 @@ export class IedSearchFilter extends LitElement {
 
       --md-outlined-text-field-top-space: 8px;
       --md-outlined-text-field-bottom-space: 8px;
+
+      --md-outlined-segmented-button-container-height: 32px;
+
+      --md-outlined-segmented-button-shape: 10px;
+      --md-outlined-segmented-button-selected-container-color: var(
+        --oscd-primary
+      );
+      --md-outlined-segmented-button-selected-label-text-color: var(
+        --oscd-base3
+      );
+      --md-outlined-segmented-button-selected-icon-color: var(--oscd-base3);
+      --md-outlined-segmented-button-selected-focus-container-color: var(
+        --oscd-primary
+      );
+      --md-outlined-segmented-button-selected-focus-label-text-color: var(
+        --oscd-base3
+      );
+      --md-outlined-segmented-button-selected-focus-icon-color: var(
+        --oscd-base3
+      );
+      --md-outlined-segmented-button-selected-hover-container-color: var(
+        --oscd-primary
+      );
+      --md-outlined-segmented-button-selected-hover-label-text-color: var(
+        --oscd-base3
+      );
+      --md-outlined-segmented-button-selected-hover-icon-color: var(
+        --oscd-base3
+      );
     }
 
     .search-container {
@@ -403,18 +429,6 @@ export class IedSearchFilter extends LitElement {
     .search-settings p {
       font-family: var(--oscd-theme-text-font);
       font-weight: bold;
-    }
-
-    #search-mode {
-      display: flex;
-      align-self: center;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    label {
-      font-family: var(--oscd-theme-text-font);
-      color: var(--oscd-base01);
     }
   `;
 }
