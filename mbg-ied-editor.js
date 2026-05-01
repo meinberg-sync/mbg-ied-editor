@@ -23435,7 +23435,7 @@ See www.iec.ch/CCv1 for copyright details
                   >
                 </p>
               </div>
-            `)}return p` <div class="render-values">${C}</div> `}renderDataModel(e,t,s,r,n,o=[],i=!1){return Array.from(e.entries()).filter(([c])=>!this.searchTerm&&!this.scopeActive||this.pathsToRender.find(C=>C.startsWith(`${s.tagName} ${P(s)}`)&&C.includes(` ${c.getAttribute("name")}`))).map(([c,C])=>p` <details
+            `)}return p` <div class="render-values">${C}</div> `}renderDataModel(e,t,s,r,n,o=[],i=!1){return Array.from(e.entries()).filter(([c])=>{if(!this.searchTerm&&!this.scopeActive)return!0;const C=[`${s.tagName} ${P(s)}`,...o.map(u=>u.name),c.getAttribute("name")].join(" ");return!!this.pathsToRender.find(u=>u===C||u.startsWith(`${C} `))}).map(([c,C])=>p` <details
             class="${F({odd:i,"value-details":Array.isArray(t?.get(c))||C.size===0})}"
             @toggle=${()=>{this.requestUpdate()}}
           >
