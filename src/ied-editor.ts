@@ -561,6 +561,7 @@ export class IedEditor extends LitElement {
         default="${value.textContent as string}"
         label="${label}"
         ?readOnly="${readOnly}"
+        @click=${(e: Event) => e.stopPropagation()}
       ></mbg-val-input>`;
     }
 
@@ -570,6 +571,7 @@ export class IedEditor extends LitElement {
       default="${value.textContent as string}"
       label="${label}"
       ?readOnly="${readOnly}"
+      @click=${(e: Event) => e.stopPropagation()}
     ></mbg-val-input>`;
   }
 
