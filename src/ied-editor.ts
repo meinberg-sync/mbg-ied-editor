@@ -55,6 +55,10 @@ function handleModelExpand(e: Event) {
   // toggle buttonIcon text
   const expandContent = buttonIcon.textContent === 'expand_all';
   buttonIcon.textContent = expandContent ? 'collapse_all' : 'expand_all';
+  button.setAttribute(
+    'aria-label',
+    expandContent ? 'Collapse all' : 'Expand all',
+  );
 
   // get parent details
   let parent = button.parentElement;
@@ -599,10 +603,12 @@ export class IedEditor extends LitElement {
             ? nothing
             : html` <div class="render-value-actions">
                 <md-icon-button
+                  aria-label="Save value"
                   @click=${() => this.updateValue(values[0], ln, path)}
                   ><md-icon>save</md-icon></md-icon-button
                 >
                 <md-icon-button
+                  aria-label="Delete value"
                   @click=${() => {
                     const removeVal: Remove = {
                       node: findInstanceToRemove(values[0]),
@@ -650,6 +656,7 @@ export class IedEditor extends LitElement {
                   ? nothing
                   : html`<div class="render-value-actions">
                       <md-icon-button
+                        aria-label=${`Save setting group ${i}`}
                         @click=${() => {
                           this.addMissingValues(
                             ln,
@@ -671,6 +678,7 @@ export class IedEditor extends LitElement {
                       >
                       ${value === activeValue
                         ? html`<md-icon-button
+                            aria-label="Delete all setting group values"
                             @click=${() => {
                               this.addMissingValues(
                                 ln,
@@ -689,6 +697,7 @@ export class IedEditor extends LitElement {
                             ><md-icon>delete_sweep</md-icon></md-icon-button
                           > `
                         : html`<md-icon-button
+                            aria-label=${`Sync value of setting group ${i} with active setting group ${actSG}`}
                             @click=${() => {
                               value!.textContent =
                                 activeValue?.textContent as string;
@@ -713,6 +722,7 @@ export class IedEditor extends LitElement {
                 <p class="value-error">
                   Missing value for SG ${i}
                   <md-icon-button
+                    aria-label=${`Add value for setting group ${i}`}
                     @click=${() => {
                       this.addValue(
                         ln,
@@ -798,6 +808,7 @@ export class IedEditor extends LitElement {
                 ${key.getAttribute('name')}
                 ${value.size === 0 && !hasValues(values?.get(key))
                   ? html`<md-icon-button
+                      aria-label=${`Add ${key.getAttribute('name')} to the IED`}
                       @click=${() => {
                         this.addValues(
                           ln,
@@ -834,6 +845,7 @@ export class IedEditor extends LitElement {
                 ${renderDataModelSpan(key)}
                 <div class="model-actions">
                   <md-icon-button
+                    aria-label=${`Edit ${key.getAttribute('name')}`}
                     @click=${() =>
                       this.openEditDialog(
                         key,
@@ -848,7 +860,9 @@ export class IedEditor extends LitElement {
                   ${['DO', 'SDO'].includes(key.tagName) ||
                   (['DA', 'BDA'].includes(key.tagName) && value.size > 0)
                     ? html`
-                        <md-icon-button @click=${handleModelExpand}
+                        <md-icon-button
+                          aria-label="Expand all"
+                          @click=${handleModelExpand}
                           ><md-icon>expand_all</md-icon></md-icon-button
                         >
                       `
@@ -926,10 +940,14 @@ export class IedEditor extends LitElement {
           <div class="model-details">
             <span class="type">${ld.nodeName}</span>
             <div class="model-actions">
-              <md-icon-button @click=${() => this.openEditDialog(ld)}
+              <md-icon-button
+                aria-label=${`Edit ${ld.getAttribute('inst')}`}
+                @click=${() => this.openEditDialog(ld)}
                 ><md-icon>edit</md-icon></md-icon-button
               >
-              <md-icon-button @click=${handleModelExpand}
+              <md-icon-button
+                aria-label="Expand all"
+                @click=${handleModelExpand}
                 ><md-icon>expand_all</md-icon></md-icon-button
               >
             </div>
@@ -963,15 +981,21 @@ export class IedEditor extends LitElement {
                     <div class="model-actions">
                       ${['LN'].includes(ln.tagName)
                         ? html`
-                            <md-icon-button @click=${() => this.deleteLN(ln)}
+                            <md-icon-button
+                              aria-label="Delete logical node"
+                              @click=${() => this.deleteLN(ln)}
                               ><md-icon>delete</md-icon></md-icon-button
                             >
                           `
                         : nothing}
-                      <md-icon-button @click=${() => this.openEditDialog(ln)}
+                      <md-icon-button
+                        aria-label="Edit logical node"
+                        @click=${() => this.openEditDialog(ln)}
                         ><md-icon>edit</md-icon></md-icon-button
                       >
-                      <md-icon-button @click=${handleModelExpand}
+                      <md-icon-button
+                        aria-label="Expand all"
+                        @click=${handleModelExpand}
                         ><md-icon>expand_all</md-icon></md-icon-button
                       >
                     </div>
@@ -1052,11 +1076,14 @@ export class IedEditor extends LitElement {
                     <div class="model-details">
                       <div class="model-actions">
                         <md-icon-button
+                          aria-label="Edit access point"
                           @click=${() =>
                             this.openEditDialog(server.parentElement!)}
                           ><md-icon>edit</md-icon></md-icon-button
                         >
-                        <md-icon-button @click=${handleModelExpand}
+                        <md-icon-button
+                          aria-label="Expand all"
+                          @click=${handleModelExpand}
                           ><md-icon>expand_all</md-icon></md-icon-button
                         >
                       </div>

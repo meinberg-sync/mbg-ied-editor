@@ -159,7 +159,6 @@ export default class MbgIedEditor extends LitElement {
               <md-outlined-select
                 id="ied-selector"
                 label="Select IED"
-                aria-labelledby="group-title"
                 @change=${this.updateEditorDisplay}
               >
                 <md-select-option value="" class="placeholder">
