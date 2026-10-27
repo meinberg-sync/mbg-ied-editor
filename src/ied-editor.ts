@@ -96,6 +96,15 @@ function renderDataModelSpan(key: Element) {
   >`;
 }
 
+function renderReadOnlyIndicator() {
+  return html`<div
+    class="render-value-actions read-only-indicator"
+    title="This value is read-only (valKind is RO)"
+  >
+    <md-icon role="img" aria-label="read-only">lock</md-icon>
+  </div>`;
+}
+
 export class IedEditor extends LitElement {
   @property({ type: Object }) doc?: Document;
 
@@ -125,6 +134,8 @@ export class IedEditor extends LitElement {
 
   @state() private deleteDialogItems: string[] = [];
 
+  @state() private dirtyInputs: Set<string> = new Set();
+
   @state() private editDialogOpen = false;
 
   @state() private editDialogHeadline = '';
@@ -144,6 +155,7 @@ export class IedEditor extends LitElement {
       this.pathsToRender = [];
       this.searchTerm = '';
       this.scopeActive = false;
+      this.dirtyInputs = new Set();
       this.loadingIED = true;
 
       setTimeout(() => {
@@ -161,6 +173,28 @@ export class IedEditor extends LitElement {
     this.searchTerm = e.detail.searchTerm;
     this.pathsToRender = e.detail.pathsToRender;
     this.scopeActive = e.detail.scopeActive;
+  }
+
+  private handleValueInput(e: Event, valueElement: Element) {
+    const input = e.currentTarget as HTMLElement & {
+      value: string;
+      id: string;
+    };
+    const dirty = new Set(this.dirtyInputs);
+
+    if (input.value !== valueElement.textContent) {
+      dirty.add(input.id);
+    } else {
+      dirty.delete(input.id);
+    }
+
+    this.dirtyInputs = dirty;
+  }
+
+  private clearDirty(...ids: string[]) {
+    const dirty = new Set(this.dirtyInputs);
+    ids.forEach(id => dirty.delete(id));
+    this.dirtyInputs = dirty;
   }
 
   private instantiatePath(path: { name: string; tag: string }[], ln: Element) {
@@ -405,6 +439,7 @@ export class IedEditor extends LitElement {
       textContent: input.value,
     };
     this.dispatchEvent(newEditEventV2([...edits, editVal]));
+    this.clearDirty(elementID);
     this.requestUpdate();
   }
 
@@ -563,8 +598,11 @@ export class IedEditor extends LitElement {
         .enumLabels=${JSON.stringify(enumLabels)}
         default="${value.textContent as string}"
         label="${label}"
+        class=${classMap({ dirty: this.dirtyInputs.has(elementID) })}
         ?readOnly="${readOnly}"
         @click=${(e: Event) => e.stopPropagation()}
+        @input=${(e: Event) => this.handleValueInput(e, value)}
+        @change=${(e: Event) => this.handleValueInput(e, value)}
       ></mbg-val-input>`;
     }
 
@@ -573,8 +611,11 @@ export class IedEditor extends LitElement {
       bType="${bType ?? ''}"
       default="${value.textContent as string}"
       label="${label}"
+      class=${classMap({ dirty: this.dirtyInputs.has(elementID) })}
       ?readOnly="${readOnly}"
       @click=${(e: Event) => e.stopPropagation()}
+      @input=${(e: Event) => this.handleValueInput(e, value)}
+      @change=${(e: Event) => this.handleValueInput(e, value)}
     ></mbg-val-input>`;
   }
 
@@ -595,14 +636,21 @@ export class IedEditor extends LitElement {
       isReadOnly(parentDA) || isReadOnly(values[0].parentElement);
 
     if (numOfSGs === 0 || !['SG', 'SE'].includes(parentFC)) {
+      const inputID = getInputPath(ln, path, '');
+      const dirty = this.dirtyInputs.has(inputID);
+
       return html` <div class="render-values">
         <div class="render-value-container">
           ${this.renderValueInputField(values[0], ln, path, readOnly)}
           ${readOnly
-            ? nothing
+            ? renderReadOnlyIndicator()
             : html` <div class="render-value-actions">
                 <md-icon-button
-                  aria-label="Save value"
+                  class=${classMap({ dirty })}
+                  aria-label=${dirty
+                    ? 'Save value (unsaved changes)'
+                    : 'Save value'}
+                  ?disabled=${!dirty}
                   @click=${() => this.updateValue(values[0], ln, path)}
                   ><md-icon>save</md-icon></md-icon-button
                 >
@@ -613,6 +661,7 @@ export class IedEditor extends LitElement {
                       node: findInstanceToRemove(values[0]),
                     };
                     this.dispatchEvent(newEditEventV2(removeVal));
+                    this.clearDirty(inputID);
                     this.requestUpdate();
                   }}
                   ><md-icon>delete</md-icon></md-icon-button
@@ -639,6 +688,8 @@ export class IedEditor extends LitElement {
         [value] = values;
       }
 
+      const dirty = this.dirtyInputs.has(getInputPath(ln, path, i.toString()));
+
       valueContainers.push(
         value
           ? html`
@@ -652,10 +703,14 @@ export class IedEditor extends LitElement {
                   value === activeValue,
                 )}
                 ${readOnly
-                  ? nothing
+                  ? renderReadOnlyIndicator()
                   : html`<div class="render-value-actions">
                       <md-icon-button
-                        aria-label=${`Save setting group ${i}`}
+                        class=${classMap({ dirty })}
+                        aria-label=${dirty
+                          ? `Save setting group ${i} (unsaved changes)`
+                          : `Save setting group ${i}`}
+                        ?disabled=${!dirty}
                         @click=${() => {
                           this.addMissingValues(
                             ln,
@@ -691,6 +746,11 @@ export class IedEditor extends LitElement {
                                 };
                                 this.dispatchEvent(newEditEventV2(removeVal));
                               }
+                              this.clearDirty(
+                                ...Array.from({ length: numOfSGs }, (_, sg) =>
+                                  getInputPath(ln, path, (sg + 1).toString()),
+                                ),
+                              );
                               this.requestUpdate();
                             }}
                             ><md-icon>delete_sweep</md-icon></md-icon-button
@@ -1261,6 +1321,27 @@ export class IedEditor extends LitElement {
       min-height: var(--mbg-height);
     }
 
+    .read-only-indicator {
+      color: var(--oscd-base0);
+    }
+
+    .render-value-actions md-icon-button.dirty {
+      position: relative;
+      --md-icon-button-icon-color: var(--oscd-secondary);
+      --md-icon-button-hover-icon-color: var(--oscd-secondary);
+    }
+
+    .render-value-actions md-icon-button.dirty::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--oscd-secondary);
+    }
+
     .value-error {
       color: var(--oscd-error);
       font-weight: bold;
@@ -1299,6 +1380,14 @@ export class IedEditor extends LitElement {
       --mbg-val-input-shape: var(--mbg-shape);
       --mbg-val-input-space: var(--mbg-space);
       --mbg-val-input-height: var(--mbg-height);
+    }
+
+    mbg-val-input.dirty {
+      --md-outlined-text-field-outline-color: var(--oscd-secondary);
+      --md-outlined-text-field-outline-width: 3px;
+
+      --md-outlined-select-text-field-outline-color: var(--oscd-secondary);
+      --md-outlined-select-text-field-outline-width: 3px;
     }
 
     .desc {
