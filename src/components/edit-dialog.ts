@@ -136,7 +136,7 @@ export class EditDialog extends LitElement {
     form {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: var(--mbg-gap-md);
       min-width: 320px;
     }
 

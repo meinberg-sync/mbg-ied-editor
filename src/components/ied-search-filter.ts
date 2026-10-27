@@ -352,15 +352,18 @@ export class IedSearchFilter extends LitElement {
 
   static styles = css`
     :host {
-      --md-outlined-icon-button-size: 24px;
-      --md-outlined-icon-button-container-shape: 10px;
+      --mbg-search-width: min(400px, 60vw);
 
-      --md-outlined-text-field-top-space: 8px;
-      --md-outlined-text-field-bottom-space: 8px;
+      --md-outlined-icon-button-size: 24px;
+      --md-outlined-icon-button-container-shape: var(--mbg-shape);
+
+      --md-outlined-text-field-top-space: var(--mbg-space);
+      --md-outlined-text-field-bottom-space: var(--mbg-space);
+      --md-outlined-text-field-container-shape: var(--mbg-shape);
 
       --md-outlined-segmented-button-container-height: 32px;
 
-      --md-outlined-segmented-button-shape: 10px;
+      --md-outlined-segmented-button-shape: var(--mbg-shape);
       --md-outlined-segmented-button-selected-container-color: var(
         --oscd-primary
       );
@@ -391,18 +394,18 @@ export class IedSearchFilter extends LitElement {
     .search-container {
       width: fit-content;
       background: var(--oscd-base3);
-      border-radius: 10px;
+      border-radius: var(--mbg-shape);
     }
 
     .search-field {
       display: flex;
       align-items: center;
       width: max-content;
-      padding: 0.5rem;
+      padding: var(--mbg-gap-sm);
     }
 
     .search-field .search-icon {
-      padding: 0 8px;
+      padding: 0 var(--mbg-gap-sm);
     }
 
     .clear-btn {
@@ -410,40 +413,40 @@ export class IedSearchFilter extends LitElement {
       overflow: hidden;
       opacity: 0;
       transition:
-        max-width 0.2s ease,
-        opacity 0.2s ease;
+        max-width var(--mbg-motion-fast) ease,
+        opacity var(--mbg-motion-fast) ease;
     }
 
     .has-term .clear-btn {
       max-width: 40px;
       opacity: 1;
-      margin-right: 0.5rem;
+      margin-right: var(--mbg-gap-sm);
     }
 
     .search-input {
-      width: 400px;
+      width: var(--mbg-search-width);
       min-width: 0;
-      transition: width 0.2s ease;
-      margin: 0 0.5rem;
+      transition: width var(--mbg-motion-fast) ease;
+      margin: 0 var(--mbg-gap-sm);
     }
 
     .has-term .search-input {
-      width: 376px;
+      width: calc(var(--mbg-search-width) - 24px);
     }
 
     .search-settings {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      padding: 0 1rem;
+      gap: var(--mbg-gap-md);
+      padding: 0 var(--mbg-gap-md);
       overflow: hidden;
       max-height: 0;
-      transition: max-height 0.25s ease-out;
+      transition: max-height var(--mbg-motion-medium) ease-out;
     }
 
     .search-settings.open {
       max-height: 4rem;
-      transition: max-height 0.25s ease-in;
+      transition: max-height var(--mbg-motion-medium) ease-in;
     }
 
     .search-settings p {
@@ -452,7 +455,7 @@ export class IedSearchFilter extends LitElement {
     }
 
     .search-help-btn {
-      margin-left: 0.5rem;
+      margin-left: var(--mbg-gap-sm);
     }
   `;
 }
