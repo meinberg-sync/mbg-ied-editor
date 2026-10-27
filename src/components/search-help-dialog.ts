@@ -97,7 +97,7 @@ export class IedSearchHelp extends LitElement {
       font-family: var(--oscd-theme-text-font);
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: var(--mbg-gap-sm);
       max-width: 400px;
     }
 
@@ -108,8 +108,8 @@ export class IedSearchHelp extends LitElement {
     }
 
     .help-content p {
-      margin: 0.5rem 0;
-      font-size: 14px;
+      margin: var(--mbg-gap-sm) 0;
+      font-size: var(--mbg-text-md);
       line-height: 1.5;
     }
 
@@ -118,7 +118,7 @@ export class IedSearchHelp extends LitElement {
       background: var(--oscd-base2);
       padding: 0.1em 0.35em;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: var(--mbg-text-sm);
     }
   `;
 }

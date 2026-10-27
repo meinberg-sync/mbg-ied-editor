@@ -41,7 +41,6 @@ import './components/alert-dialog.js';
 import './components/edit-dialog.js';
 import './components/ied-search-filter.js';
 
-import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/progress/circular-progress.js';
@@ -792,6 +791,7 @@ export class IedEditor extends LitElement {
                 uninitialized: value.size === 0 && !hasValues(values?.get(key)),
                 'hide-marker':
                   Array.isArray(values?.get(key)) || value.size === 0,
+                'has-values': Array.isArray(values?.get(key)),
               })}"
               @click=${(e: Event) => {
                 if (Array.isArray(values?.get(key)) || value.size === 0) {
@@ -1106,56 +1106,11 @@ export class IedEditor extends LitElement {
   }
 
   static styles = css`
-    :host {
-      --mbg-ied-editor-spacing: 1rem;
-
-      --md-sys-color-surface-container-highest: var(--oscd-base3);
-      --md-sys-color-primary: var(--oscd-primary);
-      --md-sys-color-on-surface-variant: var(--oscd-base00);
-      --md-sys-typescale-body-large-font: var(--oscd-text-font);
-
-      --md-filled-text-field-active-indicator-color: var(--oscd-base0);
-      --md-filled-text-field-active-indicator-height: 1px;
-      --md-filled-text-field-label-text-color: var(--oscd-base1);
-      --md-filled-text-field-input-text-color: var(--oscd-base00);
-      --md-filled-text-field-hover-label-text-color: var(--oscd-base0);
-      --md-filled-text-field-hover-input-text-color: var(--oscd-base01);
-      --md-filled-text-field-focus-label-text-color: var(--oscd-primary);
-      --md-filled-text-field-focus-input-text-color: var(--oscd-base01);
-      --md-filled-text-field-input-text-size: 18px;
-
-      --md-icon-button-state-layer-height: 26px;
-      --md-icon-button-state-layer-width: 26px;
-      --md-icon-button-icon-size: 24px;
-      --md-icon-button-hover-state-layer-color: var(--oscd-base3);
-      --md-icon-button-hover-icon-color: var(--oscd-base00);
-      --md-icon-button-hover-state-layer-opacity: 1;
-
-      --md-outlined-icon-button-size: 24px;
-      --md-outlined-icon-button-container-shape: 10px;
-
-      --oscd-primary: var(--oscd-theme-primary, #2aa198);
-      --oscd-secondary: var(--oscd-theme-secondary, #6c71c4);
-      --oscd-error: var(--oscd-theme-error, #dc322f);
-
-      --oscd-base03: var(--oscd-theme-base03, #002b36);
-      --oscd-base02: var(--oscd-theme-base02, #073642);
-      --oscd-base01: var(--oscd-theme-base01, #586e75);
-      --oscd-base00: var(--oscd-theme-base00, #657b83);
-      --oscd-base0: var(--oscd-theme-base0, #839496);
-      --oscd-base1: var(--oscd-theme-base1, #93a1a1);
-      --oscd-base2: var(--oscd-theme-base2, #eee8d5);
-      --oscd-base3: var(--oscd-theme-base3, #fdf6e3);
-
-      --oscd-text-font: var(--oscd-theme-text-font, 'Roboto');
-      --oscd-icon-font: var(--oscd-theme-icon-font, 'Material Icons');
-    }
-
     main {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
-      margin-top: 1rem;
+      gap: var(--mbg-gap-md);
+      margin-top: var(--mbg-gap-md);
     }
 
     main > details {
@@ -1163,22 +1118,18 @@ export class IedEditor extends LitElement {
     }
 
     details:first-of-type {
-      border-top-left-radius: 10px;
-      border-top-right-radius: 10px;
+      border-top-left-radius: var(--mbg-shape);
+      border-top-right-radius: var(--mbg-shape);
     }
 
     details:last-of-type {
-      border-bottom-left-radius: 10px;
-      border-bottom-right-radius: 10px;
-    }
-
-    md-filled-text-field {
-      width: 300px;
+      border-bottom-left-radius: var(--mbg-shape);
+      border-bottom-right-radius: var(--mbg-shape);
     }
 
     details {
-      padding: 0 var(--mbg-ied-editor-spacing);
-      font-size: 20px;
+      padding: 0 var(--mbg-gap-md);
+      font-size: var(--mbg-text-lg);
       line-height: 1.5;
       background: var(--oscd-base2);
       color: var(--oscd-base01);
@@ -1191,11 +1142,11 @@ export class IedEditor extends LitElement {
     }
 
     details.ldevice-details {
-      margin-bottom: var(--mbg-ied-editor-spacing);
+      margin-bottom: var(--mbg-gap-md);
     }
 
     details.ldevice-details[open] {
-      padding: var(--mbg-ied-editor-spacing);
+      padding: var(--mbg-gap-md);
       padding-top: 0;
     }
 
@@ -1204,7 +1155,7 @@ export class IedEditor extends LitElement {
     }
 
     details:not(.ldevice-details):last-of-type[open] {
-      padding-bottom: var(--mbg-ied-editor-spacing);
+      padding-bottom: var(--mbg-gap-md);
     }
 
     summary {
@@ -1212,8 +1163,21 @@ export class IedEditor extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 1rem;
+      gap: var(--mbg-gap-md);
       list-style: revert;
+    }
+
+    summary.has-values {
+      align-items: flex-start;
+    }
+
+    summary.has-values > .model-details {
+      min-height: var(--mbg-height);
+    }
+
+    summary.has-values > .model-key-container {
+      align-items: flex-start;
+      line-height: var(--mbg-height);
     }
 
     summary.instantiated {
@@ -1221,11 +1185,7 @@ export class IedEditor extends LitElement {
     }
 
     summary.instantiated.hide-marker {
-      padding: 0.5rem 0;
-    }
-
-    summary.instantiated > .model-key-container.has-values {
-      align-items: center;
+      padding: var(--mbg-gap-sm) 0;
     }
 
     summary.uninitialized {
@@ -1249,13 +1209,13 @@ export class IedEditor extends LitElement {
     span.type {
       opacity: 0;
       transition: opacity 0.05s cubic-bezier(0.9, 0, 1, 0.45);
-      padding-left: 3rem;
+      padding-left: 2rem;
       font-weight: normal;
-      font-size: 16px;
+      font-size: var(--mbg-text-md);
     }
 
     span.subtype {
-      font-size: 13px;
+      font-size: var(--mbg-text-sm);
     }
 
     summary:hover {
@@ -1264,46 +1224,41 @@ export class IedEditor extends LitElement {
 
     details:hover > summary span.type {
       opacity: 0.7;
-      transition: opacity 0.2s cubic-bezier(0, 0.9, 0.45, 1);
-    }
-
-    ul {
-      margin: 0px;
-      list-style-type: none;
-      padding: 10px 0px;
+      transition: opacity var(--mbg-motion-fast) cubic-bezier(0, 0.9, 0.45, 1);
     }
 
     .model-details {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--mbg-gap-sm);
     }
 
     .model-actions {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--mbg-gap-sm);
     }
 
     .model-key-container {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--mbg-gap-sm);
     }
 
     .render-values .render-value-container:not(:first-of-type) {
-      margin-top: 0.5rem;
+      margin-top: var(--mbg-gap-sm);
     }
 
     .render-value-container {
       display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      align-items: flex-start;
+      gap: var(--mbg-gap-sm);
     }
 
     .render-value-actions {
       display: flex;
       align-items: center;
+      min-height: var(--mbg-height);
     }
 
     .value-error {
@@ -1340,10 +1295,16 @@ export class IedEditor extends LitElement {
       --md-sys-color-secondary-container: var(--oscd-base2);
     }
 
+    mbg-val-input {
+      --mbg-val-input-shape: var(--mbg-shape);
+      --mbg-val-input-space: var(--mbg-space);
+      --mbg-val-input-height: var(--mbg-height);
+    }
+
     .desc {
-      padding: 8px 0;
+      padding: var(--mbg-space) 0;
       margin: auto;
-      font-size: 16px;
+      font-size: var(--mbg-text-md);
       font-style: italic;
     }
   `;

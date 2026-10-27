@@ -10,10 +10,8 @@ import { IedEditor } from './ied-editor.js';
 
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
-import '@material/web/select/filled-select.js';
 import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
-import '@material/web/textfield/filled-text-field.js';
 
 customElements.define('ied-editor', IedEditor);
 
@@ -168,7 +166,7 @@ export default class MbgIedEditor extends LitElement {
                   manufacturers,
                   manufacturer => manufacturer,
                   manufacturer => html`
-                    <h3 id="group-title">${manufacturer}</h3>
+                    <h3 class="group-title">${manufacturer}</h3>
                     ${repeat(
                       iedsByManufacturer[manufacturer],
                       ied => ied,
@@ -235,7 +233,20 @@ export default class MbgIedEditor extends LitElement {
   }
 
   static styles = css`
-    * {
+    :host {
+      --mbg-shape: 10px;
+      --mbg-space: 8px;
+      --mbg-height: 40px;
+      --mbg-gap-md: 1rem;
+      --mbg-gap-sm: 0.5rem;
+
+      --mbg-motion-fast: 0.2s;
+      --mbg-motion-medium: 0.3s;
+
+      --mbg-text-lg: 18px;
+      --mbg-text-md: 14px;
+      --mbg-text-sm: 12px;
+
       scrollbar-color: var(--oscd-primary) var(--oscd-base3);
 
       --md-sys-color-surface-container-highest: var(--oscd-base3);
@@ -246,25 +257,6 @@ export default class MbgIedEditor extends LitElement {
       --md-sys-color-on-surface: var(--oscd-base00);
       --md-sys-typescale-body-large-font: var(--oscd-text-font);
 
-      --md-filled-select-text-field-active-indicator-color: var(--oscd-base0);
-      --md-filled-select-text-field-active-indicator-height: 1px;
-      --md-filled-select-text-field-label-text-color: var(--oscd-base1);
-      --md-filled-select-text-field-input-text-color: var(--oscd-base00);
-      --md-filled-select-text-field-hover-label-text-color: var(--oscd-base0);
-      --md-filled-select-text-field-hover-input-text-color: var(--oscd-base01);
-      --md-filled-select-text-field-focus-label-text-color: var(--oscd-primary);
-      --md-filled-select-text-field-focus-input-text-color: var(--oscd-base01);
-
-      --md-filled-text-field-active-indicator-color: var(--oscd-base0);
-      --md-filled-text-field-active-indicator-height: 1px;
-      --md-filled-text-field-label-text-color: var(--oscd-base1);
-      --md-filled-text-field-input-text-color: var(--oscd-base00);
-      --md-filled-text-field-hover-label-text-color: var(--oscd-base0);
-      --md-filled-text-field-hover-input-text-color: var(--oscd-base01);
-      --md-filled-text-field-focus-label-text-color: var(--oscd-primary);
-      --md-filled-text-field-focus-input-text-color: var(--oscd-base01);
-      --md-filled-text-field-input-text-size: 18px;
-
       --md-icon-button-state-layer-height: 26px;
       --md-icon-button-state-layer-width: 26px;
       --md-icon-button-icon-size: 24px;
@@ -272,7 +264,8 @@ export default class MbgIedEditor extends LitElement {
       --md-icon-button-hover-icon-color: var(--oscd-base00);
       --md-icon-button-hover-state-layer-opacity: 1;
 
-      --md-outlined-icon-button-container-shape: 10px;
+      --md-outlined-icon-button-container-shape: var(--mbg-shape);
+      --md-outlined-icon-button-size: 24px;
 
       --oscd-primary: var(--oscd-theme-primary, #2aa198);
       --oscd-secondary: var(--oscd-theme-secondary, #6c71c4);
@@ -291,9 +284,17 @@ export default class MbgIedEditor extends LitElement {
       --oscd-icon-font: var(--oscd-theme-icon-font, 'Material Icons');
     }
 
+    @media (prefers-reduced-motion: reduce) {
+      :host {
+        --mbg-motion-fast: 0s;
+        --mbg-motion-medium: 0s;
+      }
+    }
+
     main {
-      padding: 1rem;
-      margin: 1rem;
+      padding: var(--mbg-gap-md);
+      margin: var(--mbg-gap-md);
+      border-radius: var(--mbg-shape);
       background-color: var(--oscd-base2);
       color: var(--oscd-base01);
       font-family: var(--oscd-text-font);
@@ -304,9 +305,9 @@ export default class MbgIedEditor extends LitElement {
       align-items: center;
       width: min-content;
       background: var(--oscd-base3);
-      gap: 0.5rem;
-      padding: 0.5rem;
-      border-radius: 10px;
+      gap: var(--mbg-gap-sm);
+      padding: var(--mbg-gap-sm);
+      border-radius: var(--mbg-shape);
     }
 
     .ied-name-container {
@@ -320,23 +321,24 @@ export default class MbgIedEditor extends LitElement {
     }
 
     .ied-icon {
-      padding: 0 8px;
+      padding: 0 var(--mbg-space);
     }
 
     #ied-selector {
-      height: 40px;
+      height: var(--mbg-height);
 
-      --md-outlined-select-text-field-input-text-line-height: 8px;
-      --md-outlined-select-text-field-label-text-line-height: 12px;
+      --md-outlined-select-text-field-container-shape: var(--mbg-shape);
+      --md-outlined-field-top-space: var(--mbg-space);
+      --md-outlined-field-bottom-space: var(--mbg-space);
     }
 
     .placeholder {
       display: none;
     }
 
-    #group-title {
-      font-size: 15px;
-      margin: 0.5rem;
+    .group-title {
+      font-size: var(--mbg-text-md);
+      margin: var(--mbg-gap-sm);
     }
 
     .ied-button-container {
@@ -351,8 +353,8 @@ export default class MbgIedEditor extends LitElement {
       max-width: 0;
       overflow: hidden;
       transition:
-        opacity 0.35s ease,
-        max-width 0.35s ease;
+        opacity var(--mbg-motion-medium) ease,
+        max-width var(--mbg-motion-medium) ease;
     }
 
     .hidden-input.show {
@@ -362,34 +364,34 @@ export default class MbgIedEditor extends LitElement {
     }
 
     #edit-name-button.show {
-      margin-left: 0.5rem;
+      margin-left: var(--mbg-gap-sm);
     }
 
     #ied-name-input {
       overflow: hidden;
       max-height: 0;
-      transition: max-height 0.25s ease-out;
+      transition: max-height var(--mbg-motion-medium) ease-out;
     }
 
     #ied-name-input.show {
       max-height: 5rem;
-      padding-top: 0.5rem;
-      margin-top: 0.5rem;
-      transition: max-height 0.25s ease-in;
+      padding-top: var(--mbg-gap-sm);
+      margin-top: var(--mbg-gap-sm);
+      transition: max-height var(--mbg-motion-medium) ease-in;
     }
 
     .ied-name {
       width: 100%;
-      --md-outlined-text-field-top-space: 8px;
-      --md-outlined-text-field-bottom-space: 8px;
+      --md-outlined-text-field-top-space: var(--mbg-space);
+      --md-outlined-text-field-bottom-space: var(--mbg-space);
     }
 
     #edit-name-tooltip {
       visibility: hidden;
       background-color: var(--oscd-base00);
-      padding: 8px;
+      padding: var(--mbg-space);
       color: var(--oscd-base3);
-      font-size: 16px;
+      font-size: var(--mbg-text-md);
       border-radius: 6px;
       border: 1px solid var(--oscd-base00);
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);

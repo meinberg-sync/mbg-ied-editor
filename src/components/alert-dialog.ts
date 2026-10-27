@@ -84,12 +84,12 @@ export class AlertDialog extends LitElement {
     }
 
     ul {
-      margin: 16px 0;
+      margin: var(--mbg-gap-md) 0;
       padding-left: 20px;
     }
 
     li {
-      margin: 8px 0;
+      margin: var(--mbg-gap-sm) 0;
     }
 
     #alert-message strong {
