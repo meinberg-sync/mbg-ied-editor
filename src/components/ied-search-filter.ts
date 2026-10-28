@@ -8,6 +8,7 @@ import {
   debounce,
   getDataModel,
   getInitializedEltPath,
+  getTypeIndex,
   matchesLNToken,
   matchesNameToken,
   pathHasPrefixAndTokens,
@@ -192,6 +193,24 @@ export class IedSearchFilter extends LitElement {
     return matchingPaths;
   }
 
+  private indexDataModelPaths() {
+    if (!this.ied || !this.doc) return;
+
+    const types = getTypeIndex(
+      this.doc.querySelector(':root > DataTypeTemplates'),
+    );
+
+    this.ied
+      .querySelectorAll(
+        ':scope > AccessPoint > Server > LDevice > LN, :scope > AccessPoint > Server > LDevice > LN0',
+      )
+      .forEach(ln => {
+        const lnType = types.get(ln.getAttribute('lnType') ?? '');
+        if (lnType?.tagName !== 'LNodeType') return;
+        getDataModel(lnType, [`${ln.tagName} ${identity(ln)}`], types);
+      });
+  }
+
   private performSearch(searchTerm: string) {
     this.searchTerm = searchTerm;
     const newPathsToRender: string[] = [];
@@ -222,6 +241,8 @@ export class IedSearchFilter extends LitElement {
         this.searchHierarchicalTemplates(tokens).forEach(addPath);
       }
     } else if (searchTerm) {
+      if (useTemplates) this.indexDataModelPaths();
+
       [
         ...this.searchSelectorIED(),
         ...this.searchSelectorIEDValues(),

@@ -71,7 +71,24 @@ export function getInitializedEltPath(element: Element): string {
   return path.join(' ');
 }
 
-export function getDataModel(dataType: Element, path: string[]): DataModel {
+export function getTypeIndex(
+  templates: Element | null | undefined,
+): Map<string, Element> {
+  const types = new Map<string, Element>();
+  Array.from(templates?.children ?? []).forEach(type => {
+    const id = type.getAttribute('id');
+    if (id && !types.has(id)) {
+      types.set(id, type);
+    }
+  });
+  return types;
+}
+
+export function getDataModel(
+  dataType: Element,
+  path: string[],
+  types?: Map<string, Element>,
+): DataModel {
   // a datatype can have multiple paths - store to avoid duplicates
   const stringPath = path.join(' ');
   if (!dataModelPathCache.has(dataType)) {
@@ -98,15 +115,18 @@ export function getDataModel(dataType: Element, path: string[]): DataModel {
       dataModelPathCache.get(child).add(childStringPath);
     }
 
-    const childType = dataType
-      ?.closest('DataTypeTemplates')
-      ?.querySelector(`:scope > [id="${child.getAttribute('type')}"]`);
+    const childType = types
+      ? types.get(child.getAttribute('type') ?? '')
+      : dataType
+          ?.closest('DataTypeTemplates')
+          ?.querySelector(`:scope > [id="${child.getAttribute('type')}"]`);
     if (childType) {
       dataModel.set(
         child,
         getDataModel(
           childType,
           path.concat(child.getAttribute('name') as string),
+          types,
         ),
       );
     } else {
