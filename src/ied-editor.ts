@@ -1255,15 +1255,20 @@ export class IedEditor extends LitElement {
                 ${repeat(
                   Array.from(
                     server.querySelectorAll(':scope > LDevice'),
-                  ).filter(
-                    ld =>
-                      (!this.searchTerm && !this.scopeActive) ||
-                      this.pathsToRender.find(
-                        path =>
-                          path === identity(ld) ||
-                          path.includes(`${identity(ld)}>`),
-                      ),
-                  ),
+                  ).filter(ld => {
+                    if (!this.searchTerm && !this.scopeActive) return true;
+
+                    const lnPaths = Array.from(
+                      ld.querySelectorAll(':scope > LN0, :scope > LN'),
+                    ).map(lnPath);
+                    return this.pathsToRender.some(
+                      path =>
+                        path === identity(ld) ||
+                        lnPaths.some(
+                          p => path === p || path.startsWith(`${p} `),
+                        ),
+                    );
+                  }),
                   ld => ld,
                   ld => this.renderLDevice(ld),
                 )}
