@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
+import { keyed } from 'lit/directives/keyed.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { property, state } from 'lit/decorators.js';
 
@@ -44,7 +45,6 @@ import './components/ied-search-filter.js';
 
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
-import '@material/web/progress/circular-progress.js';
 import '@material/web/dialog/dialog.js';
 import '@material/web/button/text-button.js';
 
@@ -119,8 +119,6 @@ export class IedEditor extends LitElement {
 
   @property({ type: Array }) pathsToRender: string[] = [];
 
-  @property({ type: Boolean }) loadingIED = false;
-
   @state() private scopeActive = false;
 
   @state() private pendingDeleteLN: Element | null = null;
@@ -162,10 +160,6 @@ export class IedEditor extends LitElement {
       this.typeIndex = undefined;
       this.dataModels = new Map();
     }
-  }
-
-  protected updated(changed: Map<string, unknown>) {
-    super.updated?.(changed);
 
     if (changed.has('doc') || changed.has('docName') || changed.has('ied')) {
       this.pathsToRender = [];
@@ -173,12 +167,6 @@ export class IedEditor extends LitElement {
       this.scopeActive = false;
       this.dirtyInputs = new Set();
       this.openPaths = new Set();
-      this.loadingIED = true;
-
-      setTimeout(() => {
-        this.loadingIED = false;
-        this.requestUpdate();
-      }, 1000);
     }
   }
 
@@ -1220,75 +1208,69 @@ export class IedEditor extends LitElement {
         }}
       ></mbg-alert-dialog>
 
-      ${this.loadingIED
-        ? html`<main>
-            <div class="loading-container">
-              <md-circular-progress
-                four-color
-                indeterminate
-              ></md-circular-progress>
-            </div>
-          </main>`
-        : html`<main>
-            <ied-search-filter
-              .doc=${this.doc}
-              .ied=${this.ied}
-              @search-changed=${this.handleSearchChanged}
-            ></ied-search-filter>
+      ${keyed(
+        this.ied,
+        html`<main>
+          <ied-search-filter
+            .doc=${this.doc}
+            .ied=${this.ied}
+            @search-changed=${this.handleSearchChanged}
+          ></ied-search-filter>
 
-            ${Array.from(
-              this.ied?.querySelectorAll(':scope > AccessPoint > Server') ?? [],
-            ).map(
-              server =>
-                html` <details class="odd" open>
-                  <summary>
-                    ${server.parentElement?.getAttribute('name')} Server
-                    <div class="model-details">
-                      <div class="model-actions">
-                        <md-icon-button
-                          aria-label="Edit access point"
-                          @click=${() =>
-                            this.openEditDialog(server.parentElement!)}
-                          ><md-icon>edit</md-icon></md-icon-button
-                        >
-                        <md-icon-button
-                          aria-label="Expand all"
-                          @click=${(e: Event) =>
-                            this.handleExpandAll(
-                              e,
-                              this.lnExpandPaths(
-                                Array.from(
-                                  server.querySelectorAll(
-                                    ':scope > LDevice > LN0, :scope > LDevice > LN',
-                                  ),
+          ${Array.from(
+            this.ied?.querySelectorAll(':scope > AccessPoint > Server') ?? [],
+          ).map(
+            server =>
+              html` <details class="odd" open>
+                <summary>
+                  ${server.parentElement?.getAttribute('name')} Server
+                  <div class="model-details">
+                    <div class="model-actions">
+                      <md-icon-button
+                        aria-label="Edit access point"
+                        @click=${() =>
+                          this.openEditDialog(server.parentElement!)}
+                        ><md-icon>edit</md-icon></md-icon-button
+                      >
+                      <md-icon-button
+                        aria-label="Expand all"
+                        @click=${(e: Event) =>
+                          this.handleExpandAll(
+                            e,
+                            this.lnExpandPaths(
+                              Array.from(
+                                server.querySelectorAll(
+                                  ':scope > LDevice > LN0, :scope > LDevice > LN',
                                 ),
-                                1,
                               ),
-                            )}
-                          ><md-icon>expand_all</md-icon></md-icon-button
-                        >
-                      </div>
+                              1,
+                            ),
+                          )}
+                        ><md-icon>expand_all</md-icon></md-icon-button
+                      >
                     </div>
-                  </summary>
-                  ${this.renderDescription(server.parentElement!)}
-                  ${repeat(
-                    Array.from(
-                      server.querySelectorAll(':scope > LDevice'),
-                    ).filter(
-                      ld =>
-                        (!this.searchTerm && !this.scopeActive) ||
-                        this.pathsToRender.find(
-                          path =>
-                            path === identity(ld) ||
-                            path.includes(`${identity(ld)}>`),
-                        ),
-                    ),
-                    ld => ld,
-                    ld => this.renderLDevice(ld),
-                  )}
-                </details>`,
-            )}
-          </main>`}
+                  </div>
+                </summary>
+                ${this.renderDescription(server.parentElement!)}
+                ${repeat(
+                  Array.from(
+                    server.querySelectorAll(':scope > LDevice'),
+                  ).filter(
+                    ld =>
+                      (!this.searchTerm && !this.scopeActive) ||
+                      this.pathsToRender.find(
+                        path =>
+                          path === identity(ld) ||
+                          path.includes(`${identity(ld)}>`),
+                      ),
+                  ),
+                  ld => ld,
+                  ld => this.renderLDevice(ld),
+                )}
+              </details>`,
+          )}
+        </main>`,
+      )}
     `;
   }
 
