@@ -1,5 +1,5 @@
-import { LitElement, html, css, nothing, render, TemplateResult } from 'lit';
-import { ref } from 'lit/directives/ref.js';
+import { LitElement, html, css, nothing, TemplateResult } from 'lit';
+import { repeat } from 'lit/directives/repeat.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { property, state } from 'lit/decorators.js';
 
@@ -19,6 +19,7 @@ import {
   getValues,
   getDataModel,
   getInitializedEltPath,
+  getTypeIndex,
 } from './utils/ied-data-model.js';
 
 import {
@@ -47,38 +48,38 @@ import '@material/web/progress/circular-progress.js';
 import '@material/web/dialog/dialog.js';
 import '@material/web/button/text-button.js';
 
-function handleModelExpand(e: Event) {
-  const button = e.target as HTMLButtonElement;
-  const buttonIcon = button.querySelector('md-icon') as HTMLSpanElement;
+function lnPath(ln: Element): string {
+  return `${ln.tagName} ${identity(ln)}`;
+}
 
-  // toggle buttonIcon text
+function collectExpandablePaths(
+  dataModel: DataModel,
+  basePath: string,
+  maxDepth = Infinity,
+  paths: string[] = [],
+): string[] {
+  if (maxDepth <= 0) return paths;
+
+  dataModel.forEach((value, key) => {
+    if (value.size === 0) return;
+
+    const path = `${basePath} ${key.getAttribute('name')}`;
+    paths.push(path);
+    collectExpandablePaths(value, path, maxDepth - 1, paths);
+  });
+
+  return paths;
+}
+
+function toggleExpandButton(button: HTMLElement): boolean {
+  const buttonIcon = button.querySelector('md-icon') as HTMLSpanElement;
   const expandContent = buttonIcon.textContent === 'expand_all';
   buttonIcon.textContent = expandContent ? 'collapse_all' : 'expand_all';
   button.setAttribute(
     'aria-label',
     expandContent ? 'Collapse all' : 'Expand all',
   );
-
-  // get parent details
-  let parent = button.parentElement;
-  while (parent && parent.tagName !== 'DETAILS') {
-    parent = parent.parentElement;
-  }
-
-  // open the parent details
-  if (parent && !parent.hasAttribute('open')) {
-    parent.toggleAttribute('open');
-  }
-
-  // toggle all child details
-  const details = parent?.querySelectorAll('details');
-  if (details) {
-    for (const detail of details) {
-      if (!detail.classList.contains('value-details')) {
-        detail.toggleAttribute('open', expandContent);
-      }
-    }
-  }
+  return expandContent;
 }
 
 function renderDataModelSpan(key: Element) {
@@ -142,11 +143,26 @@ export class IedEditor extends LitElement {
 
   @state() private editDialogFields: EditField[] = [];
 
+  @state() private openPaths: Set<string> = new Set();
+
   private pendingEditElement: Element | null = null;
 
   private pendingEditLN: Element | null = null;
 
   private pendingEditPath: { name: string; tag: string }[] = [];
+
+  private typeIndex?: Map<string, Element>;
+
+  private dataModels = new Map<Element, DataModel>();
+
+  protected willUpdate(changed: Map<string, unknown>) {
+    super.willUpdate?.(changed);
+
+    if (changed.has('doc') || changed.has('ied') || changed.has('editCount')) {
+      this.typeIndex = undefined;
+      this.dataModels = new Map();
+    }
+  }
 
   protected updated(changed: Map<string, unknown>) {
     super.updated?.(changed);
@@ -156,6 +172,7 @@ export class IedEditor extends LitElement {
       this.searchTerm = '';
       this.scopeActive = false;
       this.dirtyInputs = new Set();
+      this.openPaths = new Set();
       this.loadingIED = true;
 
       setTimeout(() => {
@@ -167,6 +184,80 @@ export class IedEditor extends LitElement {
 
   private get dataTypeTemplates(): Element {
     return this.doc?.querySelector(`:root > DataTypeTemplates`) as Element;
+  }
+
+  private get types(): Map<string, Element> {
+    this.typeIndex ??= getTypeIndex(this.dataTypeTemplates);
+    return this.typeIndex;
+  }
+
+  private getLNModel(ln: Element): DataModel | undefined {
+    const lnType = this.types.get(ln.getAttribute('lnType') ?? '');
+    if (lnType?.tagName !== 'LNodeType') return undefined;
+
+    let dataModel = this.dataModels.get(lnType);
+    if (!dataModel) {
+      dataModel = getDataModel(lnType, [lnPath(ln)], this.types);
+      this.dataModels.set(lnType, dataModel);
+    }
+
+    return dataModel;
+  }
+
+  private lnExpandPaths(lns: Element[], maxDepth = Infinity): string[] {
+    return lns.flatMap(ln => {
+      const dataModel = this.getLNModel(ln);
+      return [
+        lnPath(ln),
+        ...(dataModel
+          ? collectExpandablePaths(dataModel, lnPath(ln), maxDepth)
+          : []),
+      ];
+    });
+  }
+
+  private handleExpandAll(e: Event, paths: string[], ownPath?: string) {
+    e.preventDefault();
+
+    const button = e.currentTarget as HTMLElement;
+    const expand = toggleExpandButton(button);
+
+    const details = button.closest('details');
+    if (details && !details.open) {
+      details.open = true;
+    }
+
+    if (!ownPath) {
+      details
+        ?.querySelectorAll(':scope > details:not(.odd)')
+        .forEach(child => child.toggleAttribute('open', expand));
+    }
+
+    const openPaths = new Set(this.openPaths);
+    paths.forEach(path =>
+      expand ? openPaths.add(path) : openPaths.delete(path),
+    );
+    if (ownPath) {
+      openPaths.add(ownPath);
+    }
+
+    this.openPaths = openPaths;
+  }
+
+  private handleToggle(e: Event, path: string) {
+    if (e.target !== e.currentTarget) return;
+
+    const { open } = e.currentTarget as HTMLDetailsElement;
+    if (this.openPaths.has(path) === open) return;
+
+    const openPaths = new Set(this.openPaths);
+    if (open) {
+      openPaths.add(path);
+    } else {
+      openPaths.delete(path);
+    }
+
+    this.openPaths = openPaths;
   }
 
   private handleSearchChanged(e: CustomEvent<SearchChangedDetail>) {
@@ -813,166 +904,168 @@ export class IedEditor extends LitElement {
     actSG: number,
     path: { name: string; tag: string }[] = [],
     odd = false,
-  ) {
-    return Array.from(dataModel.entries())
-      .filter(([key]: [Element, DataModel]) => {
+  ): unknown {
+    const basePath = [lnPath(ln), ...path.map(p => p.name)].join(' ');
+    const keyPathOf = (key: Element) =>
+      `${basePath} ${key.getAttribute('name')}`;
+
+    const entries = Array.from(dataModel.entries()).filter(
+      ([key]: [Element, DataModel]) => {
         if (!this.searchTerm && !this.scopeActive) {
           return true;
         }
 
-        // check if the current key or any of its children match the paths to render
-        const keyPath = [
-          `${ln.tagName} ${identity(ln)}`,
-          ...path.map(p => p.name),
-          key.getAttribute('name'),
-        ].join(' ');
+        const keyPath = keyPathOf(key);
 
         // exact match or starts with the keyPath followed by a space (to avoid partial matches)
         return !!this.pathsToRender.find(
           renderPath =>
             renderPath === keyPath || renderPath.startsWith(`${keyPath} `),
         );
-      })
-      .map(
-        ([key, value]: [Element, DataModel]) =>
-          html` <details
+      },
+    );
+
+    return repeat(
+      entries,
+      ([key]) => key,
+      ([key, value]: [Element, DataModel]) => {
+        const keyPath = keyPathOf(key);
+        const isOpen = this.openPaths.has(keyPath);
+
+        return html` <details
+          class="${classMap({
+            odd,
+            'value-details':
+              Array.isArray(values?.get(key)) || value.size === 0,
+          })}"
+          ?open=${isOpen}
+          @toggle=${(e: Event) => this.handleToggle(e, keyPath)}
+        >
+          <summary
             class="${classMap({
-              odd,
-              'value-details':
+              instantiated: !!values?.has(key),
+              uninitialized: value.size === 0 && !hasValues(values?.get(key)),
+              'hide-marker':
                 Array.isArray(values?.get(key)) || value.size === 0,
+              'has-values': Array.isArray(values?.get(key)),
             })}"
-            @toggle=${() => {
-              this.requestUpdate();
+            @click=${(e: Event) => {
+              if (Array.isArray(values?.get(key)) || value.size === 0) {
+                e.preventDefault();
+              }
             }}
           >
-            <summary
+            <div
               class="${classMap({
-                instantiated: !!values?.has(key),
-                uninitialized: value.size === 0 && !hasValues(values?.get(key)),
-                'hide-marker':
-                  Array.isArray(values?.get(key)) || value.size === 0,
+                'model-key-container': true,
                 'has-values': Array.isArray(values?.get(key)),
               })}"
-              @click=${(e: Event) => {
-                if (Array.isArray(values?.get(key)) || value.size === 0) {
-                  e.preventDefault();
-                }
-              }}
             >
-              <div
-                class="${classMap({
-                  'model-key-container': true,
-                  'has-values': Array.isArray(values?.get(key)),
-                })}"
-              >
-                ${key.getAttribute('name')}
-                ${value.size === 0 && !hasValues(values?.get(key))
-                  ? html`<md-icon-button
-                      aria-label=${`Add ${key.getAttribute('name')} to the IED`}
-                      @click=${() => {
-                        this.addValues(
-                          ln,
-                          key,
-                          path.concat([
-                            {
-                              name: key.getAttribute('name') ?? '',
-                              tag: 'DAI',
-                            },
-                          ]),
-                          numOfSGs,
-                        );
-                      }}
-                      ><md-icon>add</md-icon></md-icon-button
-                    >`
-                  : nothing}
-                ${Array.isArray(values?.get(key))
-                  ? this.renderValues(
-                      values.get(key) as Element[],
-                      ln,
-                      numOfSGs,
-                      actSG,
-                      path.concat([
-                        {
-                          name: key.getAttribute('name') ?? '',
-                          tag: 'DAI',
-                        },
-                      ]),
-                    )
-                  : nothing}
-              </div>
-
-              <div class="model-details">
-                ${renderDataModelSpan(key)}
-                <div class="model-actions">
-                  <md-icon-button
-                    aria-label=${`Edit ${key.getAttribute('name')}`}
-                    @click=${() =>
-                      this.openEditDialog(
-                        key,
+              ${key.getAttribute('name')}
+              ${value.size === 0 && !hasValues(values?.get(key))
+                ? html`<md-icon-button
+                    aria-label=${`Add ${key.getAttribute('name')} to the IED`}
+                    @click=${() => {
+                      this.addValues(
                         ln,
-                        path.concat({
-                          name: key.getAttribute('name') ?? '',
-                          tag: setTag(key),
-                        }),
-                      )}
-                    ><md-icon>edit</md-icon></md-icon-button
-                  >
-                  ${['DO', 'SDO'].includes(key.tagName) ||
-                  (['DA', 'BDA'].includes(key.tagName) && value.size > 0)
-                    ? html`
-                        <md-icon-button
-                          aria-label="Expand all"
-                          @click=${handleModelExpand}
-                          ><md-icon>expand_all</md-icon></md-icon-button
-                        >
-                      `
-                    : nothing}
-                </div>
-              </div>
-            </summary>
-
-            ${this.renderDescription(
-              key,
-              ln,
-              path.concat({
-                name: key.getAttribute('name') ?? '',
-                tag: setTag(key),
-              }),
-            )}
-
-            <div
-              ${ref(div => {
-                if (!div?.parentElement?.hasAttribute('open')) return;
-
-                render(
-                  this.renderDataModel(
-                    value,
-                    values?.get(key) as Values | undefined,
+                        key,
+                        path.concat([
+                          {
+                            name: key.getAttribute('name') ?? '',
+                            tag: 'DAI',
+                          },
+                        ]),
+                        numOfSGs,
+                      );
+                    }}
+                    ><md-icon>add</md-icon></md-icon-button
+                  >`
+                : nothing}
+              ${Array.isArray(values?.get(key))
+                ? this.renderValues(
+                    values.get(key) as Element[],
                     ln,
                     numOfSGs,
                     actSG,
-                    path.concat({
-                      name: key.getAttribute('name') ?? '',
-                      tag: setTag(key),
-                    }),
-                    !odd,
-                  ),
-                  div as HTMLElement,
-                );
-              })}
-            ></div>
-          </details>`,
-      );
+                    path.concat([
+                      {
+                        name: key.getAttribute('name') ?? '',
+                        tag: 'DAI',
+                      },
+                    ]),
+                  )
+                : nothing}
+            </div>
+
+            <div class="model-details">
+              ${renderDataModelSpan(key)}
+              <div class="model-actions">
+                <md-icon-button
+                  aria-label=${`Edit ${key.getAttribute('name')}`}
+                  @click=${() =>
+                    this.openEditDialog(
+                      key,
+                      ln,
+                      path.concat({
+                        name: key.getAttribute('name') ?? '',
+                        tag: setTag(key),
+                      }),
+                    )}
+                  ><md-icon>edit</md-icon></md-icon-button
+                >
+                ${['DO', 'SDO'].includes(key.tagName) ||
+                (['DA', 'BDA'].includes(key.tagName) && value.size > 0)
+                  ? html`
+                      <md-icon-button
+                        aria-label="Expand all"
+                        @click=${(e: Event) =>
+                          this.handleExpandAll(
+                            e,
+                            collectExpandablePaths(value, keyPath),
+                            keyPath,
+                          )}
+                        ><md-icon>expand_all</md-icon></md-icon-button
+                      >
+                    `
+                  : nothing}
+              </div>
+            </div>
+          </summary>
+
+          ${this.renderDescription(
+            key,
+            ln,
+            path.concat({
+              name: key.getAttribute('name') ?? '',
+              tag: setTag(key),
+            }),
+          )}
+
+          <div>
+            ${isOpen
+              ? this.renderDataModel(
+                  value,
+                  values?.get(key) as Values | undefined,
+                  ln,
+                  numOfSGs,
+                  actSG,
+                  path.concat({
+                    name: key.getAttribute('name') ?? '',
+                    tag: setTag(key),
+                  }),
+                  !odd,
+                )
+              : nothing}
+          </div>
+        </details>`;
+      },
+    );
   }
 
   private renderLN(ln: Element, numOfSGs: number, actSG: number) {
-    const lnType = this.dataTypeTemplates?.querySelector(
-      `:scope > LNodeType[id="${ln.getAttribute('lnType')}"]`,
-    ) as Element;
-    if (!lnType) return nothing;
+    const dataModel = this.getLNModel(ln);
+    if (!dataModel) return nothing;
 
-    const path = [`${ln.tagName} ${identity(ln)}`];
-    const dataModel = getDataModel(lnType, path);
     const values = getValues(ln, dataModel) as Values;
     return this.renderDataModel(dataModel, values, ln, numOfSGs, actSG);
   }
@@ -984,6 +1077,7 @@ export class IedEditor extends LitElement {
       10,
     );
     const actSG = parseInt(sgcb?.getAttribute('actSG')?.trim() ?? '0', 10);
+    const lns = Array.from(ld.querySelectorAll(':scope > LN0, :scope > LN'));
 
     return html`
       <details
@@ -1007,24 +1101,34 @@ export class IedEditor extends LitElement {
               >
               <md-icon-button
                 aria-label="Expand all"
-                @click=${handleModelExpand}
+                @click=${(e: Event) =>
+                  this.handleExpandAll(e, this.lnExpandPaths(lns, 1))}
                 ><md-icon>expand_all</md-icon></md-icon-button
               >
             </div>
           </div>
         </summary>
         ${this.renderDescription(ld)}
-        ${Array.from(ld.querySelectorAll(':scope > LN0, :scope > LN'))
-          .filter(
-            ln =>
-              (!this.searchTerm && !this.scopeActive) ||
-              this.pathsToRender.find(path =>
-                path.startsWith(`${ln.tagName} ${identity(ln)}`),
-              ),
-          )
-          .map(
-            ln => html`
-              <details class="odd">
+        ${repeat(
+          lns.filter(ln => {
+            if (!this.searchTerm && !this.scopeActive) return true;
+
+            const path = lnPath(ln);
+            return this.pathsToRender.some(
+              renderPath =>
+                renderPath === path || renderPath.startsWith(`${path} `),
+            );
+          }),
+          ln => ln,
+          ln => {
+            const path = lnPath(ln);
+            const isOpen = this.openPaths.has(path);
+            return html`
+              <details
+                class="odd"
+                ?open=${isOpen}
+                @toggle=${(e: Event) => this.handleToggle(e, path)}
+              >
                 <summary>
                   ${ln.getAttribute('prefix')}${ln.getAttribute(
                     'lnClass',
@@ -1055,17 +1159,23 @@ export class IedEditor extends LitElement {
                       >
                       <md-icon-button
                         aria-label="Expand all"
-                        @click=${handleModelExpand}
+                        @click=${(e: Event) =>
+                          this.handleExpandAll(
+                            e,
+                            this.lnExpandPaths([ln]).slice(1),
+                            path,
+                          )}
                         ><md-icon>expand_all</md-icon></md-icon-button
                       >
                     </div>
                   </div>
                 </summary>
                 ${this.renderDescription(ln)}
-                ${this.renderLN(ln, numOfSGs, actSG)}
+                ${isOpen ? this.renderLN(ln, numOfSGs, actSG) : nothing}
               </details>
-            `,
-          )}
+            `;
+          },
+        )}
       </details>
     `;
   }
@@ -1143,22 +1253,39 @@ export class IedEditor extends LitElement {
                         >
                         <md-icon-button
                           aria-label="Expand all"
-                          @click=${handleModelExpand}
+                          @click=${(e: Event) =>
+                            this.handleExpandAll(
+                              e,
+                              this.lnExpandPaths(
+                                Array.from(
+                                  server.querySelectorAll(
+                                    ':scope > LDevice > LN0, :scope > LDevice > LN',
+                                  ),
+                                ),
+                                1,
+                              ),
+                            )}
                           ><md-icon>expand_all</md-icon></md-icon-button
                         >
                       </div>
                     </div>
                   </summary>
                   ${this.renderDescription(server.parentElement!)}
-                  ${Array.from(server.querySelectorAll(':scope > LDevice'))
-                    .filter(
+                  ${repeat(
+                    Array.from(
+                      server.querySelectorAll(':scope > LDevice'),
+                    ).filter(
                       ld =>
                         (!this.searchTerm && !this.scopeActive) ||
-                        this.pathsToRender.find(path =>
-                          path.includes(identity(ld) as string),
+                        this.pathsToRender.find(
+                          path =>
+                            path === identity(ld) ||
+                            path.includes(`${identity(ld)}>`),
                         ),
-                    )
-                    .map(ld => this.renderLDevice(ld))}
+                    ),
+                    ld => ld,
+                    ld => this.renderLDevice(ld),
+                  )}
                 </details>`,
             )}
           </main>`}
