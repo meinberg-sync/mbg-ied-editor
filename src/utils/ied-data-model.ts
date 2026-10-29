@@ -6,6 +6,8 @@ export type DataModel = Map<Element, DataModel>;
 
 export type Values = Map<Element, Values | Element[]>;
 
+export type PathSegment = { name: string; tag: string };
+
 export function debounce(callback: (...args: unknown[]) => void, delay = 100) {
   let timeout: number;
   return (...args: unknown[]) => {
