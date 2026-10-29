@@ -1,3 +1,5 @@
+import type { PathSegment } from './ied-data-model.js';
+
 export function findInstanceToRemove(element: Element) {
   const parent = element.parentElement as Element;
   const siblings = Array.from(parent.children).filter(
@@ -11,11 +13,7 @@ export function findInstanceToRemove(element: Element) {
   return findInstanceToRemove(parent);
 }
 
-export function getInputPath(
-  ln: Element,
-  path: { name: string; tag: string }[],
-  sGroup: string,
-) {
+export function getInputPath(ln: Element, path: PathSegment[], sGroup: string) {
   const parentLD = (ln.parentNode as Element)?.getAttribute('inst');
   const lnClass = ln.getAttribute('lnClass');
   const lnInst = ln.getAttribute('inst');
@@ -31,7 +29,7 @@ export function getInputPath(
 
 export function resolveInstance(
   ln: Element,
-  path: { name: string; tag: string }[],
+  path: PathSegment[],
 ): Element | null {
   if (path.length === 0) return null;
 
@@ -47,7 +45,7 @@ export function resolveInstance(
 export function getInstanceDescription(
   target: Element,
   host?: Element,
-  path: { name: string; tag: string }[] = [],
+  path: PathSegment[] = [],
 ) {
   let instantiatedDesc = '';
 
@@ -68,7 +66,7 @@ export function getInstanceDescription(
 export function getMostNestedElement(
   template: Element,
   lnType: string,
-  path: { name: string; tag: string }[],
+  path: PathSegment[],
 ): Element | null {
   let parentName = path[0].name;
   let parentElt = template?.querySelector(
@@ -131,7 +129,7 @@ export function getTemplateDescription(template: Element, target: Element) {
 export function getTemplateValue(
   template: Element,
   lnType: string,
-  path: { name: string; tag: string }[],
+  path: PathSegment[],
 ) {
   if (!template) return '';
 
