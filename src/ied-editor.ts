@@ -4,13 +4,7 @@ import { keyed } from 'lit/directives/keyed.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { property, state } from 'lit/decorators.js';
 
-import { Edit, identity } from '@openenergytools/scl-lib';
-import {
-  Insert,
-  Remove,
-  SetAttributes,
-  SetTextContent,
-} from '@omicronenergy/oscd-api';
+import { identity } from '@openenergytools/scl-lib';
 import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 
 import {
@@ -19,12 +13,10 @@ import {
   hasValues,
   getValues,
   getDataModel,
-  getInitializedEltPath,
   getTypeIndex,
 } from './utils/ied-data-model.js';
 
 import {
-  findInstanceToRemove,
   getInputPath,
   getInstanceDescription,
   getMostNestedElement,
@@ -34,6 +26,24 @@ import {
   isReadOnly,
   setTag,
 } from './utils/ied-scl.js';
+
+import {
+  buildDeleteLNEdits,
+  buildUpdateValueEdits,
+  buildAddValueEdits,
+  buildAddValuesEdits,
+  buildMissingValuesEdits,
+  buildRemoveValueEdits,
+  buildRemoveAllValuesEdits,
+  buildInstanceDescEdits,
+  buildAttributeEdits,
+} from './utils/ied-edits.js';
+
+import {
+  lnPath,
+  collectExpandablePaths,
+  findLNReferences,
+} from './utils/ln-model.js';
 
 import type { EditField } from './components/edit-dialog.js';
 import type { SearchChangedDetail } from './components/ied-search-filter.js';
@@ -47,29 +57,6 @@ import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/dialog/dialog.js';
 import '@material/web/button/text-button.js';
-
-function lnPath(ln: Element): string {
-  return `${ln.tagName} ${identity(ln)}`;
-}
-
-function collectExpandablePaths(
-  dataModel: DataModel,
-  basePath: string,
-  maxDepth = Infinity,
-  paths: string[] = [],
-): string[] {
-  if (maxDepth <= 0) return paths;
-
-  dataModel.forEach((value, key) => {
-    if (value.size === 0) return;
-
-    const path = `${basePath} ${key.getAttribute('name')}`;
-    paths.push(path);
-    collectExpandablePaths(value, path, maxDepth - 1, paths);
-  });
-
-  return paths;
-}
 
 function toggleExpandButton(button: HTMLElement): boolean {
   const buttonIcon = button.querySelector('md-icon') as HTMLSpanElement;
@@ -276,92 +263,27 @@ export class IedEditor extends LitElement {
     this.dirtyInputs = dirty;
   }
 
-  private instantiatePath(path: { name: string; tag: string }[], ln: Element) {
-    if (path.length === 0) {
-      throw new Error('Empty path');
-    }
-
-    const edits = [];
-    let instance = ln;
-    for (let i = 0; i < path.length; i += 1) {
-      let nextInstance = instance?.querySelector(
-        `:scope > [name="${path[i].name}"]`,
-      );
-      if (!nextInstance) {
-        nextInstance = this.doc?.createElementNS(
-          ln.namespaceURI,
-          path[i].tag,
-        ) as Element;
-        nextInstance.setAttribute('name', path[i].name);
-
-        const newEdit: Insert = {
-          parent: instance,
-          node: nextInstance,
-          reference: null,
-        };
-        edits.push(newEdit);
-      }
-      instance = nextInstance;
-    }
-
-    return { parent: instance, edits };
-  }
-
   private deleteLN(ln: Element) {
-    const ldInst = (ln.parentNode as Element).getAttribute('inst') ?? '';
+    const lnReferences = findLNReferences(ln);
     const lnClass = ln.getAttribute('lnClass') ?? '';
     const lnInst = ln.getAttribute('inst') ?? '';
-    const prefix = ln.getAttribute('prefix') ?? '';
-    const lnIdentifier = `${lnClass}${lnInst}`;
-
-    const referencingElements: string[] = [];
-    Array.from(ln.parentElement?.querySelectorAll('* DAI') ?? []).forEach(
-      elt => {
-        if (
-          elt?.querySelector('Val')?.textContent === `${ldInst}/${lnIdentifier}`
-        ) {
-          const eltPath = getInitializedEltPath(elt);
-          const splitPath = eltPath.split(' ');
-          referencingElements.push(`LN ${splitPath[2]}${splitPath[3]}`);
-        }
-      },
-    );
-
-    const matchingFcdas: Element[] = [];
-    ln.closest('IED')
-      ?.querySelectorAll('FCDA')
-      .forEach(fcda => {
-        if (
-          fcda.getAttribute('ldInst') === ldInst &&
-          fcda.getAttribute('lnClass') === lnClass &&
-          (fcda.getAttribute('lnInst') ?? '') === lnInst &&
-          (fcda.getAttribute('prefix') ?? '') === prefix
-        ) {
-          matchingFcdas.push(fcda);
-          const datasetName = fcda.parentElement?.getAttribute('name') ?? '';
-          const doName = fcda.getAttribute('doName') ?? '';
-          const daName = fcda.getAttribute('daName');
-          const doRef = daName ? `${doName}.${daName}` : doName;
-          referencingElements.push(`FCDA ${doRef} in DataSet '${datasetName}'`);
-        }
-      });
 
     this.pendingDeleteLN = ln;
-    this.pendingDeleteFCDAs = matchingFcdas;
-    this.deleteDialogLD = ldInst;
-    this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnIdentifier}</strong>?`;
-    this.deleteDialogItems = referencingElements;
+    this.pendingDeleteFCDAs = lnReferences.fcdas;
+    this.deleteDialogLD = (ln.parentNode as Element).getAttribute('inst') ?? '';
+    this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnClass}${lnInst}</strong>?`;
+    this.deleteDialogItems = lnReferences.labels;
     this.deleteDialogOpen = true;
   }
 
   private handleDeleteConfirm() {
     if (!this.pendingDeleteLN) return;
 
-    const edits: Remove[] = [
-      { node: this.pendingDeleteLN },
-      ...this.pendingDeleteFCDAs.map(fcda => ({ node: fcda })),
-    ];
-    this.dispatchEvent(newEditEventV2(edits));
+    this.dispatchEvent(
+      newEditEventV2(
+        buildDeleteLNEdits(this.pendingDeleteLN, this.pendingDeleteFCDAs),
+      ),
+    );
 
     this.pendingDeleteLN = null;
     this.pendingDeleteFCDAs = [];
@@ -452,31 +374,15 @@ export class IedEditor extends LitElement {
     if (this.pendingEditLN && this.pendingEditPath.length > 0) {
       const desc = e.detail.desc?.trim() || null;
 
-      if (!desc) {
-        let instance: Element | null = this.pendingEditLN.querySelector(
-          `:scope > DOI[name="${this.pendingEditPath[0].name}"]`,
-        );
-        for (let i = 1; i < this.pendingEditPath.length && instance; i += 1) {
-          instance = instance.querySelector(
-            `:scope > *[name="${this.pendingEditPath[i].name}"]`,
-          );
-        }
-        if (instance?.hasAttribute('desc')) {
-          this.dispatchEvent(
-            newEditEventV2([{ element: instance, attributes: { desc: null } }]),
-          );
-        }
-      } else {
-        const { parent, edits } = this.instantiatePath(
-          this.pendingEditPath,
-          this.pendingEditLN,
-        );
-        const setDesc: SetAttributes = {
-          element: parent,
-          attributes: { desc },
-        };
-        this.dispatchEvent(newEditEventV2([...edits, setDesc]));
-      }
+      this.dispatchEvent(
+        newEditEventV2(
+          buildInstanceDescEdits(
+            this.pendingEditLN,
+            this.pendingEditPath,
+            desc ?? '',
+          ),
+        ),
+      );
 
       this.pendingEditLN = null;
       this.pendingEditPath = [];
@@ -486,16 +392,9 @@ export class IedEditor extends LitElement {
 
     if (!this.pendingEditElement) return;
 
-    const attributes: Record<string, string | null> = {};
-    for (const [attr, value] of Object.entries(e.detail)) {
-      attributes[attr] = value.trim() || null;
-    }
-
-    const edit: SetAttributes = {
-      element: this.pendingEditElement,
-      attributes,
-    };
-    this.dispatchEvent(newEditEventV2([edit]));
+    this.dispatchEvent(
+      newEditEventV2(buildAttributeEdits(this.pendingEditElement, e.detail)),
+    );
 
     this.pendingEditElement = null;
     this.editDialogOpen = false;
@@ -512,12 +411,9 @@ export class IedEditor extends LitElement {
       `${elementID}`,
     ) as HTMLInputElement;
 
-    const { edits } = this.instantiatePath(path, ln);
-    const editVal: SetTextContent = {
-      element: value,
-      textContent: input.value,
-    };
-    this.dispatchEvent(newEditEventV2([...edits, editVal]));
+    this.dispatchEvent(
+      newEditEventV2(buildUpdateValueEdits(ln, path, value, input.value)),
+    );
     this.clearDirty(elementID);
     this.requestUpdate();
   }
@@ -528,21 +424,9 @@ export class IedEditor extends LitElement {
     setValue: string,
     sGroup?: string,
   ) {
-    const val = ln.ownerDocument.createElementNS(
-      ln.namespaceURI,
-      'Val',
-    ) as Element;
-    if (sGroup) val.setAttribute('sGroup', sGroup);
-    val.textContent = setValue;
-
-    const { parent, edits } = this.instantiatePath(path, ln);
-    const newVal: Insert = {
-      parent,
-      node: val,
-      reference: null,
-    };
-
-    this.dispatchEvent(newEditEventV2([...edits, newVal]));
+    this.dispatchEvent(
+      newEditEventV2(buildAddValueEdits(ln, path, setValue, sGroup)),
+    );
     this.requestUpdate();
   }
 
@@ -552,74 +436,12 @@ export class IedEditor extends LitElement {
     path: { name: string; tag: string }[],
     numOfSGs: number,
   ) {
-    const isSettingAttr = ['SG', 'SE'].includes(
-      da.getAttribute('fc') as string,
+    this.dispatchEvent(
+      newEditEventV2(
+        buildAddValuesEdits(this.dataTypeTemplates, ln, da, path, numOfSGs),
+      ),
     );
-
-    if (!isSettingAttr) {
-      this.addValue(
-        ln,
-        path,
-        getTemplateValue(
-          this.dataTypeTemplates,
-          ln.getAttribute('lnType') as string,
-          path,
-        ) as string,
-      );
-      return;
-    }
-
-    for (let i = 1; i <= numOfSGs; i += 1) {
-      this.addValue(
-        ln,
-        path,
-        getTemplateValue(
-          this.dataTypeTemplates,
-          ln.getAttribute('lnType') as string,
-          path,
-        ) as string,
-        i.toString(),
-      );
-    }
-  }
-
-  private addMissingValues(
-    ln: Element,
-    path: { name: string; tag: string }[],
-    actSGValue: Element,
-    numOfSGs: number,
-  ) {
-    const { parent, edits } = this.instantiatePath(path, ln);
-    const values = Array.from(parent.querySelectorAll(':scope > Val'));
-
-    const editMissingValues: Edit[] = edits;
-    for (let i = 1; i <= numOfSGs; i += 1) {
-      const val = values.find(
-        v =>
-          v.getAttribute('sGroup') === i.toString() ||
-          (!v.hasAttribute('sGroup') && i === 1),
-      );
-      if (!val) {
-        const node = ln.ownerDocument.createElementNS(
-          ln.namespaceURI,
-          'Val',
-        ) as Element;
-        node.setAttribute('sGroup', i.toString());
-        node.textContent = actSGValue.textContent;
-        editMissingValues.push({
-          parent,
-          node,
-          reference: null,
-        });
-      } else if (val.getAttribute('sGroup') !== i.toString()) {
-        editMissingValues.push({
-          element: val,
-          attributes: { sGroup: i.toString() },
-        });
-      }
-    }
-
-    this.dispatchEvent(newEditEventV2(editMissingValues));
+    this.requestUpdate();
   }
 
   private renderDescription(
@@ -736,10 +558,9 @@ export class IedEditor extends LitElement {
                 <md-icon-button
                   aria-label="Delete value"
                   @click=${() => {
-                    const removeVal: Remove = {
-                      node: findInstanceToRemove(values[0]),
-                    };
-                    this.dispatchEvent(newEditEventV2(removeVal));
+                    this.dispatchEvent(
+                      newEditEventV2(buildRemoveValueEdits(values[0])),
+                    );
                     this.clearDirty(inputID);
                     this.requestUpdate();
                   }}
@@ -791,11 +612,15 @@ export class IedEditor extends LitElement {
                           : `Save setting group ${i}`}
                         ?disabled=${!dirty}
                         @click=${() => {
-                          this.addMissingValues(
-                            ln,
-                            path,
-                            activeValue,
-                            numOfSGs,
+                          this.dispatchEvent(
+                            newEditEventV2(
+                              buildMissingValuesEdits(
+                                ln,
+                                path,
+                                activeValue,
+                                numOfSGs,
+                              ),
+                            ),
                           );
                           const val = Array.from(
                             value.parentElement?.children ?? [],
@@ -813,18 +638,11 @@ export class IedEditor extends LitElement {
                         ? html`<md-icon-button
                             aria-label="Delete all setting group values"
                             @click=${() => {
-                              this.addMissingValues(
-                                ln,
-                                path,
-                                activeValue,
-                                numOfSGs,
+                              this.dispatchEvent(
+                                newEditEventV2(
+                                  buildRemoveAllValuesEdits(values),
+                                ),
                               );
-                              for (const val of values) {
-                                const removeVal: Remove = {
-                                  node: findInstanceToRemove(val),
-                                };
-                                this.dispatchEvent(newEditEventV2(removeVal));
-                              }
                               this.clearDirty(
                                 ...Array.from({ length: numOfSGs }, (_, sg) =>
                                   getInputPath(ln, path, (sg + 1).toString()),

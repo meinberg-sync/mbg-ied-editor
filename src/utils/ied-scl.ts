@@ -29,6 +29,21 @@ export function getInputPath(
   return elementID;
 }
 
+export function resolveInstance(
+  ln: Element,
+  path: { name: string; tag: string }[],
+): Element | null {
+  if (path.length === 0) return null;
+
+  // walk LN > DOI > SDI* > DAI by name
+  let instance = ln.querySelector(`:scope > DOI[name="${path[0].name}"]`);
+  for (let i = 1; i < path.length && instance; i += 1) {
+    instance = instance.querySelector(`:scope > *[name="${path[i].name}"]`);
+  }
+
+  return instance;
+}
+
 export function getInstanceDescription(
   target: Element,
   host?: Element,
@@ -38,14 +53,7 @@ export function getInstanceDescription(
 
   // if the instance is in a path, check if it has a description in the IED
   if (path.length > 0 && host) {
-    let childInstance = host.querySelector(
-      `:scope > DOI[name="${path[0].name}"]`,
-    );
-    for (let i = 1; i < path.length && childInstance; i += 1) {
-      childInstance = childInstance.querySelector(
-        `:scope > *[name="${path[i].name}"]`,
-      );
-    }
+    const childInstance = resolveInstance(host, path);
 
     if (childInstance?.getAttribute('name') === target.getAttribute('name')) {
       instantiatedDesc = childInstance?.getAttribute('desc') ?? '';
