@@ -10,6 +10,7 @@ import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 import {
   DataModel,
   Values,
+  PathSegment,
   hasValues,
   getValues,
   getDataModel,
@@ -134,7 +135,7 @@ export class IedEditor extends LitElement {
 
   private pendingEditLN: Element | null = null;
 
-  private pendingEditPath: { name: string; tag: string }[] = [];
+  private pendingEditPath: PathSegment[] = [];
 
   private typeIndex?: Map<string, Element>;
 
@@ -290,11 +291,7 @@ export class IedEditor extends LitElement {
     this.deleteDialogOpen = false;
   }
 
-  private openEditDialog(
-    element: Element,
-    ln?: Element,
-    path?: { name: string; tag: string }[],
-  ) {
+  private openEditDialog(element: Element, ln?: Element, path?: PathSegment[]) {
     this.pendingEditElement = element;
     const get = (attr: string) => element.getAttribute(attr) ?? '';
 
@@ -403,7 +400,7 @@ export class IedEditor extends LitElement {
   private updateValue(
     value: Element,
     ln: Element,
-    path: { name: string; tag: string }[],
+    path: PathSegment[],
     index: string = '',
   ) {
     const elementID = getInputPath(ln, path, index);
@@ -420,7 +417,7 @@ export class IedEditor extends LitElement {
 
   private addValue(
     ln: Element,
-    path: { name: string; tag: string }[],
+    path: PathSegment[],
     setValue: string,
     sGroup?: string,
   ) {
@@ -433,7 +430,7 @@ export class IedEditor extends LitElement {
   private addValues(
     ln: Element,
     da: Element,
-    path: { name: string; tag: string }[],
+    path: PathSegment[],
     numOfSGs: number,
   ) {
     this.dispatchEvent(
@@ -447,7 +444,7 @@ export class IedEditor extends LitElement {
   private renderDescription(
     target: Element,
     host?: Element,
-    path: { name: string; tag: string }[] = [],
+    path: PathSegment[] = [],
   ) {
     const desc =
       getInstanceDescription(target, host, path) ||
@@ -462,7 +459,7 @@ export class IedEditor extends LitElement {
   private renderValueInputField(
     value: Element,
     ln: Element,
-    path: { name: string; tag: string }[],
+    path: PathSegment[],
     readOnly: boolean,
     index: string = '',
     isActSG: boolean = false,
@@ -525,7 +522,7 @@ export class IedEditor extends LitElement {
     ln: Element,
     numOfSGs: number,
     actSG: number,
-    path: { name: string; tag: string }[],
+    path: PathSegment[],
   ) {
     const parentDA = getMostNestedElement(
       this.dataTypeTemplates,
@@ -708,7 +705,7 @@ export class IedEditor extends LitElement {
     ln: Element,
     numOfSGs: number,
     actSG: number,
-    path: { name: string; tag: string }[] = [],
+    path: PathSegment[] = [],
     odd = false,
   ): unknown {
     const basePath = [lnPath(ln), ...path.map(p => p.name)].join(' ');
