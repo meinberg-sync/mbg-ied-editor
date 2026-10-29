@@ -13,8 +13,6 @@ import {
   PathSegment,
   hasValues,
   getValues,
-  getDataModel,
-  getTypeIndex,
 } from './utils/ied-data-model.js';
 
 import {
@@ -41,6 +39,7 @@ import {
 } from './utils/ied-edits.js';
 
 import {
+  LNModelCache,
   lnPath,
   collectExpandablePaths,
   findLNReferences,
@@ -137,16 +136,13 @@ export class IedEditor extends LitElement {
 
   private pendingEditPath: PathSegment[] = [];
 
-  private typeIndex?: Map<string, Element>;
-
-  private dataModels = new Map<Element, DataModel>();
+  private lnModels = new LNModelCache(null);
 
   protected willUpdate(changed: Map<string, unknown>) {
     super.willUpdate?.(changed);
 
     if (changed.has('doc') || changed.has('ied') || changed.has('editCount')) {
-      this.typeIndex = undefined;
-      this.dataModels = new Map();
+      this.lnModels = new LNModelCache(this.dataTypeTemplates);
     }
 
     if (changed.has('doc') || changed.has('docName') || changed.has('ied')) {
@@ -160,36 +156,6 @@ export class IedEditor extends LitElement {
 
   private get dataTypeTemplates(): Element {
     return this.doc?.querySelector(`:root > DataTypeTemplates`) as Element;
-  }
-
-  private get types(): Map<string, Element> {
-    this.typeIndex ??= getTypeIndex(this.dataTypeTemplates);
-    return this.typeIndex;
-  }
-
-  private getLNModel(ln: Element): DataModel | undefined {
-    const lnType = this.types.get(ln.getAttribute('lnType') ?? '');
-    if (lnType?.tagName !== 'LNodeType') return undefined;
-
-    let dataModel = this.dataModels.get(lnType);
-    if (!dataModel) {
-      dataModel = getDataModel(lnType, [lnPath(ln)], this.types);
-      this.dataModels.set(lnType, dataModel);
-    }
-
-    return dataModel;
-  }
-
-  private lnExpandPaths(lns: Element[], maxDepth = Infinity): string[] {
-    return lns.flatMap(ln => {
-      const dataModel = this.getLNModel(ln);
-      return [
-        lnPath(ln),
-        ...(dataModel
-          ? collectExpandablePaths(dataModel, lnPath(ln), maxDepth)
-          : []),
-      ];
-    });
   }
 
   private handleExpandAll(e: Event, paths: string[], ownPath?: string) {
@@ -866,7 +832,7 @@ export class IedEditor extends LitElement {
   }
 
   private renderLN(ln: Element, numOfSGs: number, actSG: number) {
-    const dataModel = this.getLNModel(ln);
+    const dataModel = this.lnModels.get(ln);
     if (!dataModel) return nothing;
 
     const values = getValues(ln, dataModel) as Values;
@@ -905,7 +871,7 @@ export class IedEditor extends LitElement {
               <md-icon-button
                 aria-label="Expand all"
                 @click=${(e: Event) =>
-                  this.handleExpandAll(e, this.lnExpandPaths(lns, 1))}
+                  this.handleExpandAll(e, this.lnModels.expandPaths(lns, 1))}
                 ><md-icon>expand_all</md-icon></md-icon-button
               >
             </div>
@@ -965,7 +931,7 @@ export class IedEditor extends LitElement {
                         @click=${(e: Event) =>
                           this.handleExpandAll(
                             e,
-                            this.lnExpandPaths([ln]).slice(1),
+                            this.lnModels.expandPaths([ln]).slice(1),
                             path,
                           )}
                         ><md-icon>expand_all</md-icon></md-icon-button
@@ -1052,7 +1018,7 @@ export class IedEditor extends LitElement {
                         @click=${(e: Event) =>
                           this.handleExpandAll(
                             e,
-                            this.lnExpandPaths(
+                            this.lnModels.expandPaths(
                               Array.from(
                                 server.querySelectorAll(
                                   ':scope > LDevice > LN0, :scope > LDevice > LN',

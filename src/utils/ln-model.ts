@@ -1,6 +1,11 @@
 import { identity } from '@openenergytools/scl-lib';
 
-import { DataModel, getInitializedEltPath } from './ied-data-model.js';
+import {
+  DataModel,
+  getDataModel,
+  getInitializedEltPath,
+  getTypeIndex,
+} from './ied-data-model.js';
 
 export interface LNReferences {
   fcdas: Element[];
@@ -65,4 +70,39 @@ export function collectExpandablePaths(
   });
 
   return paths;
+}
+
+export class LNModelCache {
+  private types: Map<string, Element>;
+
+  private models = new Map<Element, DataModel>();
+
+  constructor(dataTypeTemplates: Element | null | undefined) {
+    this.types = getTypeIndex(dataTypeTemplates);
+  }
+
+  get(ln: Element): DataModel | undefined {
+    const lnType = this.types.get(ln.getAttribute('lnType') ?? '');
+    if (lnType?.tagName !== 'LNodeType') return undefined;
+
+    let dataModel = this.models.get(lnType);
+    if (!dataModel) {
+      dataModel = getDataModel(lnType, [lnPath(ln)], this.types);
+      this.models.set(lnType, dataModel);
+    }
+
+    return dataModel;
+  }
+
+  expandPaths(lns: Element[], maxDepth = Infinity): string[] {
+    return lns.flatMap(ln => {
+      const dataModel = this.get(ln);
+      return [
+        lnPath(ln),
+        ...(dataModel
+          ? collectExpandablePaths(dataModel, lnPath(ln), maxDepth)
+          : []),
+      ];
+    });
+  }
 }
