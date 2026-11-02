@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { property } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 
 import { SetAttributes } from '@omicronenergy/oscd-api';
@@ -30,18 +30,31 @@ export default class MbgIedEditor extends LitElement {
 
   @property({ type: Number }) editCount = 0;
 
-  @property({ type: String }) iedName = '';
+  @state() private nameInputOpen = false;
+
+  @state() private nameError = '';
 
   protected updated(changed: Map<string, unknown>) {
     super.updated?.(changed);
 
     if (changed.has('doc') || changed.has('docName')) {
-      // reset the selector
+      this.ied = undefined;
+      this.nameInputOpen = false;
+      this.nameError = '';
+      return;
+    }
+
+    // resync after name change
+    if (changed.has('editCount') && this.ied) {
+      if (!this.ied.isConnected) {
+        this.ied = undefined;
+        return;
+      }
+
       const selector = this.shadowRoot?.querySelector(
         '#ied-selector',
       ) as HTMLSelectElement;
-      selector.value = '';
-      this.updateEditorDisplay({ target: selector } as unknown as Event);
+      selector.value = this.ied.getAttribute('name') ?? '';
     }
   }
 
@@ -54,88 +67,88 @@ export default class MbgIedEditor extends LitElement {
   private updateEditorDisplay(e: Event) {
     if (!e.target) return;
 
+    // clear fields
+    this.nameInputOpen = false;
+    this.nameError = '';
+
     const iedSelector = e.target as HTMLSelectElement;
+    this.ied =
+      (this.doc?.querySelector(
+        `IED[name="${iedSelector.value}"]`,
+      ) as Element) ?? undefined;
 
-    // show edit button if a valid IED is selected
-    const button = this.shadowRoot?.querySelector('#edit-name-button');
-    if (iedSelector.value !== '' && !button?.classList.contains('show')) {
-      button?.classList.toggle('show');
-    }
-
-    // update the textfield with the selected IED name
-    const iedNameInput = this.shadowRoot?.querySelector(
-      '.ied-name',
-    ) as HTMLInputElement;
-    iedNameInput.value = iedSelector.value;
-
-    this.ied = this.doc?.querySelector(
-      `IED[name="${iedSelector.value}"]`,
-    ) as Element;
-
-    this.requestUpdate();
     this.updateIedEditor();
   }
 
-  private showIedNameInput() {
-    const iedNameContainer = this.shadowRoot?.querySelector(
-      '#ied-name-input',
-    ) as HTMLDivElement;
-    iedNameContainer.classList.toggle('show');
+  private toggleNameInput(open = !this.nameInputOpen) {
+    this.nameInputOpen = open;
+    this.nameError = '';
 
-    const button = this.shadowRoot?.querySelector(
-      '#edit-name-button',
-    ) as HTMLButtonElement;
-    const icon = button.querySelector('md-icon') as HTMLSpanElement;
-    const tooltip = this.shadowRoot?.querySelector(
-      '#edit-name-tooltip',
-    ) as HTMLSpanElement;
-
-    if (iedNameContainer.classList.contains('show')) {
-      icon.textContent = 'cancel';
-      tooltip.textContent = 'Click to close the IED name editor';
-    } else {
-      icon.textContent = 'edit';
-      tooltip.textContent = 'Click to edit the IED name';
+    if (open) {
+      const input = this.shadowRoot?.querySelector(
+        '.ied-name',
+      ) as HTMLInputElement;
+      input.value = this.ied?.getAttribute('name') ?? '';
     }
   }
 
-  private enterIEDName() {
-    if (this.iedName !== '' && this.ied) {
-      const newNameAttribute: SetAttributes = {
-        element: this.ied,
-        attributes: { name: this.iedName },
-      };
-
-      if (document.body.querySelector('oscd-shell') !== null) {
-        // use oscd-api to update the IED's name
-        this.dispatchEvent(
-          newEditEventV2(updateIED(newNameAttribute as unknown as Update)),
-        );
-      } else {
-        // ensure backwards compatibility
-        this.dispatchEvent(
-          new CustomEvent('oscd-edit', {
-            composed: true,
-            bubbles: true,
-            detail: updateIED(newNameAttribute as unknown as Update),
-          }),
-        );
-      }
-
-      // reset selector
-      const selector = this.shadowRoot?.querySelector(
-        '#ied-selector',
-      ) as HTMLSelectElement;
-      selector.value = '';
-      this.updateEditorDisplay({ target: selector } as unknown as Event);
-
-      // hide text field and button
-      this.showIedNameInput();
-      const button = this.shadowRoot?.querySelector(
-        '#edit-name-button',
-      ) as HTMLButtonElement;
-      button.classList.toggle('show');
+  private validateIEDName(name: string): string {
+    if (!name) {
+      return 'IED name is required';
     }
+
+    const regExp: RegExp = /^[A-Za-z][0-9A-Za-z_]{0,63}$/;
+    if (!regExp.test(name)) {
+      return 'Must start with a letter; only letters, digits and _ (max 64)';
+    }
+
+    if (this.doc?.querySelector(`:root > IED[name="${name}"]`)) {
+      return `"${name}" is already used by another IED`;
+    }
+
+    return '';
+  }
+
+  private enterIEDName() {
+    if (!this.ied) return;
+
+    // validate the proposed name change before sending it through
+    const newName = (
+      this.shadowRoot!.querySelector('.ied-name') as HTMLInputElement
+    ).value.trim();
+    if (newName === this.ied.getAttribute('name')) {
+      this.toggleNameInput();
+      return;
+    }
+
+    const error = this.validateIEDName(newName);
+    if (error) {
+      this.nameError = error;
+      return;
+    }
+
+    const newNameAttribute: SetAttributes = {
+      element: this.ied,
+      attributes: { name: newName },
+    };
+
+    if (document.body.querySelector('oscd-shell') !== null) {
+      // use oscd-api to update the IED's name
+      this.dispatchEvent(
+        newEditEventV2(updateIED(newNameAttribute as unknown as Update)),
+      );
+    } else {
+      // ensure backwards compatibility
+      this.dispatchEvent(
+        new CustomEvent('oscd-edit', {
+          composed: true,
+          bubbles: true,
+          detail: updateIED(newNameAttribute as unknown as Update),
+        }),
+      );
+    }
+
+    this.toggleNameInput(false);
   }
 
   render() {
@@ -157,6 +170,7 @@ export default class MbgIedEditor extends LitElement {
               <md-outlined-select
                 id="ied-selector"
                 label="Select IED"
+                .value=${this.ied?.getAttribute('name') ?? ''}
                 @change=${this.updateEditorDisplay}
               >
                 <md-select-option value="" class="placeholder">
@@ -184,27 +198,31 @@ export default class MbgIedEditor extends LitElement {
               <div class="ied-button-container">
                 <md-outlined-icon-button
                   aria-label="Edit IED Name"
-                  class="hidden-input"
+                  class="hidden-input ${this.ied ? 'show' : ''}"
                   id="edit-name-button"
-                  @click=${() => this.showIedNameInput()}
+                  @click=${() => this.toggleNameInput()}
                 >
-                  <md-icon>edit</md-icon>
+                  <md-icon>${this.nameInputOpen ? 'cancel' : 'edit'}</md-icon>
                 </md-outlined-icon-button>
-                <span id="edit-name-tooltip">Click to edit the IED name</span>
+                <span id="edit-name-tooltip"
+                  >${this.nameInputOpen
+                    ? 'Click to close the IED name editor'
+                    : 'Click to edit the IED name'}</span
+                >
               </div>
             </div>
 
-            <div id="ied-name-input">
+            <div id="ied-name-input" class=${this.nameInputOpen ? 'show' : ''}>
               <md-outlined-text-field
                 class="ied-name"
                 label="Edit IED Name"
-                value="${this.ied?.getAttribute('name') as string}"
-                @change=${(e: Event) => {
-                  this.iedName = (e.target as HTMLInputElement).value;
+                .error=${this.nameError !== ''}
+                .errorText=${this.nameError}
+                @input=${() => {
+                  this.nameError = '';
                 }}
-                @keydown=${(e: Event) => {
-                  if ((e as KeyboardEvent).key === 'Enter') {
-                    this.iedName = (e.target as HTMLInputElement).value;
+                @keydown=${(e: KeyboardEvent) => {
+                  if (e.key === 'Enter') {
                     this.enterIEDName();
                   }
                 }}
