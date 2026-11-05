@@ -125,6 +125,25 @@ describe('IedEditor values', () => {
       expect(input(el, SG2)).to.exist;
     });
 
+    it('labels only the active setting group when all SGs share one Val', async () => {
+      const { el } = await setup(doc => {
+        const dai = doc.querySelector('DAI[name="setVal"]')!;
+        dai.querySelector('Val[sGroup="2"]')!.remove();
+        dai.querySelector('Val')!.removeAttribute('sGroup');
+      });
+
+      expect(input(el, SG1)).to.have.attribute('label', 'Val 1 (actSG)');
+      expect(input(el, SG2)).to.have.attribute('label', 'Val 2');
+      expect(
+        el.shadowRoot!.querySelectorAll(
+          'md-icon-button[data-aria-label="Delete all setting group values"]',
+        ),
+      ).to.have.length(1);
+      expect(
+        button(el, 'Sync value of setting group 2 with active setting group 1'),
+      ).to.have.attribute('disabled');
+    });
+
     it('adds the missing setting group 3', async () => {
       const { el } = await setup();
 
