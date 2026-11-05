@@ -156,7 +156,7 @@ export class ValuesController implements ReactiveController {
   private renderSingleSG(sg: SettingGroup, value: Element, sgIdx: number) {
     const id = getInputId(sg.ln, sg.path, sgIdx);
     const dirty = this.isDirty(id);
-    const isActSG = value === sg.active;
+    const isActSG = sgIdx === sg.sgAct;
     const label = isActSG ? `Val ${sgIdx} (actSG)` : `Val ${sgIdx}`;
 
     return html`
