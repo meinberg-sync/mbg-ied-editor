@@ -2,11 +2,11 @@ import type { PathSegment } from './ied-data-model.js';
 
 export function findInstanceToRemove(element: Element) {
   const parent = element.parentElement as Element;
-  const siblings = Array.from(parent.children).filter(
-    child => child.tagName === element.tagName,
-  );
 
-  if (siblings.length > 1 || !['DOI', 'SDI', 'DAI'].includes(parent.tagName)) {
+  if (
+    parent.children.length > 1 ||
+    !['DOI', 'SDI', 'DAI'].includes(parent.tagName)
+  ) {
     return element;
   }
 
