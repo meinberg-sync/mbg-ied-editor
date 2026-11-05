@@ -91,9 +91,19 @@ export class IedEditor extends LitElement {
 
   @state() private scopeActive = false;
 
-  @state() private pendingDeleteLN: Element | null = null;
+  @state() private openPaths: Set<string> = new Set();
 
-  @state() private pendingDeleteFCDAs: Element[] = [];
+  @state() private editDialogOpen = false;
+
+  @state() private editDialogHeadline = '';
+
+  @state() private editDialogFields: EditField[] = [];
+
+  private pendingEditElement: Element | null = null;
+
+  private pendingEditLN: Element | null = null;
+
+  private pendingEditPath: PathSegment[] = [];
 
   @state() private deleteDialogOpen = false;
 
@@ -103,19 +113,9 @@ export class IedEditor extends LitElement {
 
   @state() private deleteDialogItems: string[] = [];
 
-  @state() private editDialogOpen = false;
+  @state() private pendingDeleteLN: Element | null = null;
 
-  @state() private editDialogHeadline = '';
-
-  @state() private editDialogFields: EditField[] = [];
-
-  @state() private openPaths: Set<string> = new Set();
-
-  private pendingEditElement: Element | null = null;
-
-  private pendingEditLN: Element | null = null;
-
-  private pendingEditPath: PathSegment[] = [];
+  @state() private pendingDeleteFCDAs: Element[] = [];
 
   private lnModels = new LNModelCache(null);
 
@@ -123,6 +123,10 @@ export class IedEditor extends LitElement {
     this,
     () => this.dataTypeTemplates,
   );
+
+  private get dataTypeTemplates(): Element {
+    return this.doc?.querySelector(`:root > DataTypeTemplates`) as Element;
+  }
 
   protected willUpdate(changed: Map<string, unknown>) {
     super.willUpdate?.(changed);
@@ -140,8 +144,20 @@ export class IedEditor extends LitElement {
     }
   }
 
-  private get dataTypeTemplates(): Element {
-    return this.doc?.querySelector(`:root > DataTypeTemplates`) as Element;
+  private handleToggle(e: Event, path: string) {
+    if (e.target !== e.currentTarget) return;
+
+    const { open } = e.currentTarget as HTMLDetailsElement;
+    if (this.openPaths.has(path) === open) return;
+
+    const openPaths = new Set(this.openPaths);
+    if (open) {
+      openPaths.add(path);
+    } else {
+      openPaths.delete(path);
+    }
+
+    this.openPaths = openPaths;
   }
 
   private handleExpandAll(e: Event, paths: string[], ownPath?: string) {
@@ -172,83 +188,10 @@ export class IedEditor extends LitElement {
     this.openPaths = openPaths;
   }
 
-  private handleToggle(e: Event, path: string) {
-    if (e.target !== e.currentTarget) return;
-
-    const { open } = e.currentTarget as HTMLDetailsElement;
-    if (this.openPaths.has(path) === open) return;
-
-    const openPaths = new Set(this.openPaths);
-    if (open) {
-      openPaths.add(path);
-    } else {
-      openPaths.delete(path);
-    }
-
-    this.openPaths = openPaths;
-  }
-
   private handleSearchChanged(e: CustomEvent<SearchChangedDetail>) {
     this.searchTerm = e.detail.searchTerm;
     this.pathsToRender = e.detail.pathsToRender;
     this.scopeActive = e.detail.scopeActive;
-  }
-
-  private handleEditSave(e: CustomEvent<Record<string, string>>) {
-    if (this.pendingEditLN && this.pendingEditPath.length > 0) {
-      const desc = e.detail.desc?.trim() || null;
-
-      this.dispatchEvent(
-        newEditEventV2(
-          buildInstanceDescEdits(
-            this.pendingEditLN,
-            this.pendingEditPath,
-            desc ?? '',
-          ),
-        ),
-      );
-
-      this.pendingEditLN = null;
-      this.pendingEditPath = [];
-      this.editDialogOpen = false;
-      return;
-    }
-
-    if (!this.pendingEditElement) return;
-
-    this.dispatchEvent(
-      newEditEventV2(buildAttributeEdits(this.pendingEditElement, e.detail)),
-    );
-
-    this.pendingEditElement = null;
-    this.editDialogOpen = false;
-  }
-
-  private handleDeleteConfirm() {
-    if (!this.pendingDeleteLN) return;
-
-    this.dispatchEvent(
-      newEditEventV2(
-        buildDeleteLNEdits(this.pendingDeleteLN, this.pendingDeleteFCDAs),
-      ),
-    );
-
-    this.pendingDeleteLN = null;
-    this.pendingDeleteFCDAs = [];
-    this.deleteDialogOpen = false;
-  }
-
-  private deleteLN(ln: Element) {
-    const lnReferences = findLNReferences(ln);
-    const lnClass = ln.getAttribute('lnClass') ?? '';
-    const lnInst = ln.getAttribute('inst') ?? '';
-
-    this.pendingDeleteLN = ln;
-    this.pendingDeleteFCDAs = lnReferences.fcdas;
-    this.deleteDialogLD = (ln.parentNode as Element).getAttribute('inst') ?? '';
-    this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnClass}${lnInst}</strong>?`;
-    this.deleteDialogItems = lnReferences.labels;
-    this.deleteDialogOpen = true;
   }
 
   private openEditDialog(element: Element, ln?: Element, path?: PathSegment[]) {
@@ -325,6 +268,75 @@ export class IedEditor extends LitElement {
     }
 
     this.editDialogOpen = true;
+  }
+
+  private closeEditDialog() {
+    this.editDialogOpen = false;
+    this.pendingEditElement = null;
+    this.pendingEditLN = null;
+    this.pendingEditPath = [];
+  }
+
+  private handleEditSave(e: CustomEvent<Record<string, string>>) {
+    if (this.pendingEditLN && this.pendingEditPath.length > 0) {
+      const desc = e.detail.desc?.trim() || null;
+
+      this.dispatchEvent(
+        newEditEventV2(
+          buildInstanceDescEdits(
+            this.pendingEditLN,
+            this.pendingEditPath,
+            desc ?? '',
+          ),
+        ),
+      );
+
+      this.pendingEditLN = null;
+      this.pendingEditPath = [];
+      this.editDialogOpen = false;
+      return;
+    }
+
+    if (!this.pendingEditElement) return;
+
+    this.dispatchEvent(
+      newEditEventV2(buildAttributeEdits(this.pendingEditElement, e.detail)),
+    );
+
+    this.pendingEditElement = null;
+    this.editDialogOpen = false;
+  }
+
+  private deleteLN(ln: Element) {
+    const lnReferences = findLNReferences(ln);
+    const lnClass = ln.getAttribute('lnClass') ?? '';
+    const lnInst = ln.getAttribute('inst') ?? '';
+
+    this.pendingDeleteLN = ln;
+    this.pendingDeleteFCDAs = lnReferences.fcdas;
+    this.deleteDialogLD = (ln.parentNode as Element).getAttribute('inst') ?? '';
+    this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnClass}${lnInst}</strong>?`;
+    this.deleteDialogItems = lnReferences.labels;
+    this.deleteDialogOpen = true;
+  }
+
+  private closeDeleteDialog() {
+    this.deleteDialogOpen = false;
+    this.pendingDeleteLN = null;
+  }
+
+  private handleDeleteConfirm() {
+    if (!this.pendingDeleteLN) return;
+
+    this.dispatchEvent(
+      newEditEventV2(
+        buildDeleteLNEdits(this.pendingDeleteLN, this.pendingDeleteFCDAs),
+      ),
+    );
+
+    this.pendingDeleteLN = null;
+    this.pendingDeleteFCDAs = [];
+    this.deleteDialogOpen = false;
   }
 
   private renderDescription(
@@ -634,16 +646,10 @@ export class IedEditor extends LitElement {
         .open=${this.editDialogOpen}
         @save=${this.handleEditSave}
         @cancel=${() => {
-          this.editDialogOpen = false;
-          this.pendingEditElement = null;
-          this.pendingEditLN = null;
-          this.pendingEditPath = [];
+          this.closeEditDialog();
         }}
         @closed=${() => {
-          this.editDialogOpen = false;
-          this.pendingEditElement = null;
-          this.pendingEditLN = null;
-          this.pendingEditPath = [];
+          this.closeEditDialog();
         }}
       ></mbg-edit-dialog>
 
@@ -657,12 +663,10 @@ export class IedEditor extends LitElement {
         .open=${this.deleteDialogOpen}
         @confirm=${this.handleDeleteConfirm}
         @cancel=${() => {
-          this.deleteDialogOpen = false;
-          this.pendingDeleteLN = null;
+          this.closeDeleteDialog();
         }}
         @closed=${() => {
-          this.deleteDialogOpen = false;
-          this.pendingDeleteLN = null;
+          this.closeDeleteDialog();
         }}
       ></mbg-alert-dialog>
 
