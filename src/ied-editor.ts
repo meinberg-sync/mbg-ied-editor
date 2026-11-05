@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, TemplateResult } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { keyed } from 'lit/directives/keyed.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -16,24 +16,14 @@ import {
 } from './utils/ied-data-model.js';
 
 import {
-  getInputPath,
   getInstanceDescription,
-  getMostNestedElement,
   getSGCB,
   getTemplateDescription,
-  getTemplateValue,
-  isReadOnly,
   setTag,
 } from './utils/ied-scl.js';
 
 import {
   buildDeleteLNEdits,
-  buildUpdateValueEdits,
-  buildAddValueEdits,
-  buildAddValuesEdits,
-  buildMissingValuesEdits,
-  buildRemoveValueEdits,
-  buildRemoveAllValuesEdits,
   buildInstanceDescEdits,
   buildAttributeEdits,
 } from './utils/ied-edits.js';
@@ -44,6 +34,8 @@ import {
   collectExpandablePaths,
   findLNReferences,
 } from './utils/ln-model.js';
+
+import { ValuesController, valuesStyles } from './utils/value-controller.js';
 
 import type { EditField } from './components/edit-dialog.js';
 import type { SearchChangedDetail } from './components/ied-search-filter.js';
@@ -84,15 +76,6 @@ function renderDataModelSpan(key: Element) {
   >`;
 }
 
-function renderReadOnlyIndicator() {
-  return html`<div
-    class="render-value-actions read-only-indicator"
-    title="This value is read-only (valKind is RO)"
-  >
-    <md-icon role="img" aria-label="read-only">lock</md-icon>
-  </div>`;
-}
-
 export class IedEditor extends LitElement {
   @property({ type: Object }) doc?: Document;
 
@@ -120,8 +103,6 @@ export class IedEditor extends LitElement {
 
   @state() private deleteDialogItems: string[] = [];
 
-  @state() private dirtyInputs: Set<string> = new Set();
-
   @state() private editDialogOpen = false;
 
   @state() private editDialogHeadline = '';
@@ -138,6 +119,11 @@ export class IedEditor extends LitElement {
 
   private lnModels = new LNModelCache(null);
 
+  private valueEditor = new ValuesController(
+    this,
+    () => this.dataTypeTemplates,
+  );
+
   protected willUpdate(changed: Map<string, unknown>) {
     super.willUpdate?.(changed);
 
@@ -149,8 +135,8 @@ export class IedEditor extends LitElement {
       this.pathsToRender = [];
       this.searchTerm = '';
       this.scopeActive = false;
-      this.dirtyInputs = new Set();
       this.openPaths = new Set();
+      this.valueEditor.reset();
     }
   }
 
@@ -208,39 +194,34 @@ export class IedEditor extends LitElement {
     this.scopeActive = e.detail.scopeActive;
   }
 
-  private handleValueInput(e: Event, valueElement: Element) {
-    const input = e.currentTarget as HTMLElement & {
-      value: string;
-      id: string;
-    };
-    const dirty = new Set(this.dirtyInputs);
+  private handleEditSave(e: CustomEvent<Record<string, string>>) {
+    if (this.pendingEditLN && this.pendingEditPath.length > 0) {
+      const desc = e.detail.desc?.trim() || null;
 
-    if (input.value !== valueElement.textContent) {
-      dirty.add(input.id);
-    } else {
-      dirty.delete(input.id);
+      this.dispatchEvent(
+        newEditEventV2(
+          buildInstanceDescEdits(
+            this.pendingEditLN,
+            this.pendingEditPath,
+            desc ?? '',
+          ),
+        ),
+      );
+
+      this.pendingEditLN = null;
+      this.pendingEditPath = [];
+      this.editDialogOpen = false;
+      return;
     }
 
-    this.dirtyInputs = dirty;
-  }
+    if (!this.pendingEditElement) return;
 
-  private clearDirty(...ids: string[]) {
-    const dirty = new Set(this.dirtyInputs);
-    ids.forEach(id => dirty.delete(id));
-    this.dirtyInputs = dirty;
-  }
+    this.dispatchEvent(
+      newEditEventV2(buildAttributeEdits(this.pendingEditElement, e.detail)),
+    );
 
-  private deleteLN(ln: Element) {
-    const lnReferences = findLNReferences(ln);
-    const lnClass = ln.getAttribute('lnClass') ?? '';
-    const lnInst = ln.getAttribute('inst') ?? '';
-
-    this.pendingDeleteLN = ln;
-    this.pendingDeleteFCDAs = lnReferences.fcdas;
-    this.deleteDialogLD = (ln.parentNode as Element).getAttribute('inst') ?? '';
-    this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnClass}${lnInst}</strong>?`;
-    this.deleteDialogItems = lnReferences.labels;
-    this.deleteDialogOpen = true;
+    this.pendingEditElement = null;
+    this.editDialogOpen = false;
   }
 
   private handleDeleteConfirm() {
@@ -255,6 +236,19 @@ export class IedEditor extends LitElement {
     this.pendingDeleteLN = null;
     this.pendingDeleteFCDAs = [];
     this.deleteDialogOpen = false;
+  }
+
+  private deleteLN(ln: Element) {
+    const lnReferences = findLNReferences(ln);
+    const lnClass = ln.getAttribute('lnClass') ?? '';
+    const lnInst = ln.getAttribute('inst') ?? '';
+
+    this.pendingDeleteLN = ln;
+    this.pendingDeleteFCDAs = lnReferences.fcdas;
+    this.deleteDialogLD = (ln.parentNode as Element).getAttribute('inst') ?? '';
+    this.deleteDialogMessage = `Are you sure you want to delete logical node <strong>${lnClass}${lnInst}</strong>?`;
+    this.deleteDialogItems = lnReferences.labels;
+    this.deleteDialogOpen = true;
   }
 
   private openEditDialog(element: Element, ln?: Element, path?: PathSegment[]) {
@@ -333,80 +327,6 @@ export class IedEditor extends LitElement {
     this.editDialogOpen = true;
   }
 
-  private handleEditSave(e: CustomEvent<Record<string, string>>) {
-    if (this.pendingEditLN && this.pendingEditPath.length > 0) {
-      const desc = e.detail.desc?.trim() || null;
-
-      this.dispatchEvent(
-        newEditEventV2(
-          buildInstanceDescEdits(
-            this.pendingEditLN,
-            this.pendingEditPath,
-            desc ?? '',
-          ),
-        ),
-      );
-
-      this.pendingEditLN = null;
-      this.pendingEditPath = [];
-      this.editDialogOpen = false;
-      return;
-    }
-
-    if (!this.pendingEditElement) return;
-
-    this.dispatchEvent(
-      newEditEventV2(buildAttributeEdits(this.pendingEditElement, e.detail)),
-    );
-
-    this.pendingEditElement = null;
-    this.editDialogOpen = false;
-  }
-
-  private updateValue(
-    value: Element,
-    ln: Element,
-    path: PathSegment[],
-    index: string = '',
-  ) {
-    const elementID = getInputPath(ln, path, index);
-    const input = this.shadowRoot?.getElementById(
-      `${elementID}`,
-    ) as HTMLInputElement;
-
-    this.dispatchEvent(
-      newEditEventV2(buildUpdateValueEdits(ln, path, value, input.value)),
-    );
-    this.clearDirty(elementID);
-    this.requestUpdate();
-  }
-
-  private addValue(
-    ln: Element,
-    path: PathSegment[],
-    setValue: string,
-    sGroup?: string,
-  ) {
-    this.dispatchEvent(
-      newEditEventV2(buildAddValueEdits(ln, path, setValue, sGroup)),
-    );
-    this.requestUpdate();
-  }
-
-  private addValues(
-    ln: Element,
-    da: Element,
-    path: PathSegment[],
-    numOfSGs: number,
-  ) {
-    this.dispatchEvent(
-      newEditEventV2(
-        buildAddValuesEdits(this.dataTypeTemplates, ln, da, path, numOfSGs),
-      ),
-    );
-    this.requestUpdate();
-  }
-
   private renderDescription(
     target: Element,
     host?: Element,
@@ -420,249 +340,6 @@ export class IedEditor extends LitElement {
     }
 
     return nothing;
-  }
-
-  private renderValueInputField(
-    value: Element,
-    ln: Element,
-    path: PathSegment[],
-    readOnly: boolean,
-    index: string = '',
-    isActSG: boolean = false,
-  ) {
-    const sGroup = value.getAttribute('sGroup') || '';
-    const label = isActSG ? `Val ${sGroup} (actSG)` : `Val ${sGroup ?? ''}`;
-    const elementID = getInputPath(ln, path, sGroup || index);
-    const parentDA = getMostNestedElement(
-      this.dataTypeTemplates,
-      ln.getAttribute('lnType') as string,
-      path,
-    );
-    const bType = parentDA?.getAttribute('bType');
-
-    // if it is an enum type, get the ordinal numbers and string labels
-    if (bType === 'Enum') {
-      const enumType = parentDA?.getAttribute('type');
-      const enumTypeElement = this.dataTypeTemplates?.querySelector(
-        `:scope > EnumType[id="${enumType}"]`,
-      );
-
-      const enumVals = enumTypeElement?.querySelectorAll('EnumVal') as NodeList;
-      const enumOrdinals = Array.from(enumVals).map(enumVal =>
-        (enumVal as Element).getAttribute('ord'),
-      );
-      const enumLabels = Array.from(enumVals).map(
-        enumVal => enumVal.textContent,
-      );
-
-      return html`<mbg-val-input
-        id="${elementID}"
-        bType="${bType}"
-        .enumOrdinals=${JSON.stringify(enumOrdinals)}
-        .enumLabels=${JSON.stringify(enumLabels)}
-        default="${value.textContent as string}"
-        label="${label}"
-        class=${classMap({ dirty: this.dirtyInputs.has(elementID) })}
-        ?readOnly="${readOnly}"
-        @click=${(e: Event) => e.stopPropagation()}
-        @input=${(e: Event) => this.handleValueInput(e, value)}
-        @change=${(e: Event) => this.handleValueInput(e, value)}
-      ></mbg-val-input>`;
-    }
-
-    return html`<mbg-val-input
-      id="${elementID}"
-      bType="${bType ?? ''}"
-      default="${value.textContent as string}"
-      label="${label}"
-      class=${classMap({ dirty: this.dirtyInputs.has(elementID) })}
-      ?readOnly="${readOnly}"
-      @click=${(e: Event) => e.stopPropagation()}
-      @input=${(e: Event) => this.handleValueInput(e, value)}
-      @change=${(e: Event) => this.handleValueInput(e, value)}
-    ></mbg-val-input>`;
-  }
-
-  private renderValues(
-    values: Element[],
-    ln: Element,
-    numOfSGs: number,
-    actSG: number,
-    path: PathSegment[],
-  ) {
-    const parentDA = getMostNestedElement(
-      this.dataTypeTemplates,
-      ln.getAttribute('lnType') as string,
-      path,
-    );
-    const parentFC = parentDA?.getAttribute('fc') as string;
-    const readOnly =
-      isReadOnly(parentDA) || isReadOnly(values[0].parentElement);
-
-    if (numOfSGs === 0 || !['SG', 'SE'].includes(parentFC)) {
-      const inputID = getInputPath(ln, path, '');
-      const dirty = this.dirtyInputs.has(inputID);
-
-      return html` <div class="render-values">
-        <div class="render-value-container">
-          ${this.renderValueInputField(values[0], ln, path, readOnly)}
-          ${readOnly
-            ? renderReadOnlyIndicator()
-            : html` <div class="render-value-actions">
-                <md-icon-button
-                  class=${classMap({ dirty })}
-                  aria-label=${dirty
-                    ? 'Save value (unsaved changes)'
-                    : 'Save value'}
-                  ?disabled=${!dirty}
-                  @click=${() => this.updateValue(values[0], ln, path)}
-                  ><md-icon>save</md-icon></md-icon-button
-                >
-                <md-icon-button
-                  aria-label="Delete value"
-                  @click=${() => {
-                    this.dispatchEvent(
-                      newEditEventV2(buildRemoveValueEdits(values[0])),
-                    );
-                    this.clearDirty(inputID);
-                    this.requestUpdate();
-                  }}
-                  ><md-icon>delete</md-icon></md-icon-button
-                >
-              </div>`}
-        </div>
-      </div>`;
-    }
-
-    const valueContainers: TemplateResult[] = [];
-
-    const activeValue =
-      values.find(
-        val =>
-          parseInt(val?.getAttribute('sGroup')?.trim() ?? '0', 10) === actSG,
-      ) ?? values[0];
-
-    for (let i = 1; i <= numOfSGs; i += 1) {
-      let value = values.find(
-        val => parseInt(val?.getAttribute('sGroup')?.trim() ?? '0', 10) === i,
-      );
-
-      if (values.length === 1 && !value?.hasAttribute('sGroup')) {
-        [value] = values;
-      }
-
-      const dirty = this.dirtyInputs.has(getInputPath(ln, path, i.toString()));
-
-      valueContainers.push(
-        value
-          ? html`
-              <div class="render-value-container">
-                ${this.renderValueInputField(
-                  value,
-                  ln,
-                  path,
-                  readOnly,
-                  i.toString(),
-                  value === activeValue,
-                )}
-                ${readOnly
-                  ? renderReadOnlyIndicator()
-                  : html`<div class="render-value-actions">
-                      <md-icon-button
-                        class=${classMap({ dirty })}
-                        aria-label=${dirty
-                          ? `Save setting group ${i} (unsaved changes)`
-                          : `Save setting group ${i}`}
-                        ?disabled=${!dirty}
-                        @click=${() => {
-                          this.dispatchEvent(
-                            newEditEventV2(
-                              buildMissingValuesEdits(
-                                ln,
-                                path,
-                                activeValue,
-                                numOfSGs,
-                              ),
-                            ),
-                          );
-                          const val = Array.from(
-                            value.parentElement?.children ?? [],
-                          ).find(
-                            v =>
-                              v.getAttribute('sGroup') === i.toString() ||
-                              (!v.hasAttribute('sGroup') && i === 1),
-                          );
-                          if (val)
-                            this.updateValue(val, ln, path, i.toString());
-                        }}
-                        ><md-icon>save</md-icon></md-icon-button
-                      >
-                      ${value === activeValue
-                        ? html`<md-icon-button
-                            aria-label="Delete all setting group values"
-                            @click=${() => {
-                              this.dispatchEvent(
-                                newEditEventV2(
-                                  buildRemoveAllValuesEdits(values),
-                                ),
-                              );
-                              this.clearDirty(
-                                ...Array.from({ length: numOfSGs }, (_, sg) =>
-                                  getInputPath(ln, path, (sg + 1).toString()),
-                                ),
-                              );
-                              this.requestUpdate();
-                            }}
-                            ><md-icon>delete_sweep</md-icon></md-icon-button
-                          > `
-                        : html`<md-icon-button
-                            aria-label=${`Sync value of setting group ${i} with active setting group ${actSG}`}
-                            @click=${() => {
-                              value!.textContent =
-                                activeValue?.textContent as string;
-                              const input = this.shadowRoot!.getElementById(
-                                `${getInputPath(ln, path, i.toString())}`,
-                              ) as HTMLInputElement;
-                              if (input)
-                                input.value =
-                                  activeValue?.textContent as string;
-                              this.updateValue(value, ln, path, i.toString());
-                            }}
-                            ?disabled=${value.textContent ===
-                            activeValue?.textContent}
-                          >
-                            <md-icon>sync</md-icon>
-                          </md-icon-button>`}
-                    </div>`}
-              </div>
-            `
-          : html`
-              <div class="render-value-container">
-                <p class="value-error">
-                  Missing value for SG ${i}
-                  <md-icon-button
-                    aria-label=${`Add value for setting group ${i}`}
-                    @click=${() => {
-                      this.addValue(
-                        ln,
-                        path,
-                        (getTemplateValue(
-                          this.dataTypeTemplates,
-                          ln.getAttribute('lnType') as string,
-                          path,
-                        ) as string) || (activeValue?.textContent as string),
-                        i.toString(),
-                      );
-                    }}
-                    ><md-icon>add</md-icon></md-icon-button
-                  >
-                </p>
-              </div>
-            `,
-      );
-    }
-
-    return html` <div class="render-values">${valueContainers}</div> `;
   }
 
   private renderDataModel(
@@ -735,7 +412,7 @@ export class IedEditor extends LitElement {
                 ? html`<md-icon-button
                     aria-label=${`Add ${key.getAttribute('name')} to the IED`}
                     @click=${() => {
-                      this.addValues(
+                      this.valueEditor.create(
                         ln,
                         key,
                         path.concat([
@@ -751,17 +428,17 @@ export class IedEditor extends LitElement {
                   >`
                 : nothing}
               ${Array.isArray(values?.get(key))
-                ? this.renderValues(
-                    values.get(key) as Element[],
+                ? this.valueEditor.render(
                     ln,
-                    numOfSGs,
-                    actSG,
+                    values.get(key) as Element[],
                     path.concat([
                       {
                         name: key.getAttribute('name') ?? '',
                         tag: 'DAI',
                       },
                     ]),
+                    numOfSGs,
+                    actSG,
                   )
                 : nothing}
             </div>
@@ -1060,236 +737,163 @@ export class IedEditor extends LitElement {
     `;
   }
 
-  static styles = css`
-    main {
-      display: flex;
-      flex-direction: column;
-      gap: var(--mbg-gap-md);
-      margin-top: var(--mbg-gap-md);
-    }
+  static styles = [
+    valuesStyles,
+    css`
+      main {
+        display: flex;
+        flex-direction: column;
+        gap: var(--mbg-gap-md);
+        margin-top: var(--mbg-gap-md);
+      }
 
-    main > details {
-      width: max-content;
-    }
+      main > details {
+        width: max-content;
+      }
 
-    details:first-of-type {
-      border-top-left-radius: var(--mbg-shape);
-      border-top-right-radius: var(--mbg-shape);
-    }
+      details:first-of-type {
+        border-top-left-radius: var(--mbg-shape);
+        border-top-right-radius: var(--mbg-shape);
+      }
 
-    details:last-of-type {
-      border-bottom-left-radius: var(--mbg-shape);
-      border-bottom-right-radius: var(--mbg-shape);
-    }
+      details:last-of-type {
+        border-bottom-left-radius: var(--mbg-shape);
+        border-bottom-right-radius: var(--mbg-shape);
+      }
 
-    details {
-      padding: 0 var(--mbg-gap-md);
-      font-size: var(--mbg-text-lg);
-      line-height: 1.5;
-      background: var(--oscd-base2);
-      color: var(--oscd-base01);
-      max-width: 100%;
-    }
+      details {
+        padding: 0 var(--mbg-gap-md);
+        font-size: var(--mbg-text-lg);
+        line-height: 1.5;
+        background: var(--oscd-base2);
+        color: var(--oscd-base01);
+        max-width: 100%;
+      }
 
-    details.odd {
-      background: var(--oscd-base3);
-      color: var(--oscd-base00);
-    }
+      details.odd {
+        background: var(--oscd-base3);
+        color: var(--oscd-base00);
+      }
 
-    details.ldevice-details {
-      margin-bottom: var(--mbg-gap-md);
-    }
+      details.ldevice-details {
+        margin-bottom: var(--mbg-gap-md);
+      }
 
-    details.ldevice-details[open] {
-      padding: var(--mbg-gap-md);
-      padding-top: 0;
-    }
+      details.ldevice-details[open] {
+        padding: var(--mbg-gap-md);
+        padding-top: 0;
+      }
 
-    details.ldevice-details:last-of-type {
-      margin-bottom: 0;
-    }
+      details.ldevice-details:last-of-type {
+        margin-bottom: 0;
+      }
 
-    details:not(.ldevice-details):last-of-type[open] {
-      padding-bottom: var(--mbg-gap-md);
-    }
+      details:not(.ldevice-details):last-of-type[open] {
+        padding-bottom: var(--mbg-gap-md);
+      }
 
-    summary {
-      user-select: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: var(--mbg-gap-md);
-      list-style: revert;
-    }
+      summary {
+        user-select: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--mbg-gap-md);
+        list-style: revert;
+      }
 
-    summary.has-values {
-      align-items: flex-start;
-    }
+      summary.has-values {
+        align-items: flex-start;
+      }
 
-    summary.has-values > .model-details {
-      min-height: var(--mbg-height);
-    }
+      summary.has-values > .model-details {
+        min-height: var(--mbg-height);
+      }
 
-    summary.has-values > .model-key-container {
-      align-items: flex-start;
-      line-height: var(--mbg-height);
-    }
+      summary.has-values > .model-key-container {
+        align-items: flex-start;
+        line-height: var(--mbg-height);
+      }
 
-    summary.instantiated {
-      color: var(--oscd-primary);
-    }
+      summary.instantiated {
+        color: var(--oscd-primary);
+      }
 
-    summary.instantiated.hide-marker {
-      padding: var(--mbg-gap-sm) 0;
-    }
+      summary.instantiated.hide-marker {
+        padding: var(--mbg-gap-sm) 0;
+      }
 
-    summary.uninitialized {
-      pointer-events: none;
-      list-style: none;
-    }
+      summary.uninitialized {
+        pointer-events: none;
+        list-style: none;
+      }
 
-    summary.uninitialized md-icon-button {
-      pointer-events: auto;
-    }
+      summary.uninitialized md-icon-button {
+        pointer-events: auto;
+      }
 
-    summary.hide-marker {
-      list-style: none;
-    }
+      summary.hide-marker {
+        list-style: none;
+      }
 
-    summary.hide-marker::marker,
-    summary.hide-marker::-webkit-details-marker {
-      display: none;
-    }
+      summary.hide-marker::marker,
+      summary.hide-marker::-webkit-details-marker {
+        display: none;
+      }
 
-    span.type {
-      opacity: 0;
-      transition: opacity 0.05s cubic-bezier(0.9, 0, 1, 0.45);
-      padding-left: 2rem;
-      font-weight: normal;
-      font-size: var(--mbg-text-md);
-    }
+      span.type {
+        opacity: 0;
+        transition: opacity 0.05s cubic-bezier(0.9, 0, 1, 0.45);
+        padding-left: 2rem;
+        font-weight: normal;
+        font-size: var(--mbg-text-md);
+      }
 
-    span.subtype {
-      font-size: var(--mbg-text-sm);
-    }
+      span.subtype {
+        font-size: var(--mbg-text-sm);
+      }
 
-    summary:hover {
-      font-weight: bold;
-    }
+      summary:hover {
+        font-weight: bold;
+      }
 
-    details:hover > summary span.type {
-      opacity: 0.7;
-      transition: opacity var(--mbg-motion-fast) cubic-bezier(0, 0.9, 0.45, 1);
-    }
+      details:hover > summary span.type {
+        opacity: 0.7;
+        transition: opacity var(--mbg-motion-fast) cubic-bezier(0, 0.9, 0.45, 1);
+      }
 
-    .model-details {
-      display: flex;
-      align-items: center;
-      gap: var(--mbg-gap-sm);
-    }
+      .model-details {
+        display: flex;
+        align-items: center;
+        gap: var(--mbg-gap-sm);
+      }
 
-    .model-actions {
-      display: flex;
-      align-items: center;
-      gap: var(--mbg-gap-sm);
-    }
+      .model-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--mbg-gap-sm);
+      }
 
-    .model-key-container {
-      display: flex;
-      align-items: center;
-      gap: var(--mbg-gap-sm);
-    }
+      .model-key-container {
+        display: flex;
+        align-items: center;
+        gap: var(--mbg-gap-sm);
+      }
 
-    .render-values .render-value-container:not(:first-of-type) {
-      margin-top: var(--mbg-gap-sm);
-    }
+      .ied-name md-icon-button,
+      .search-field md-icon-button,
+      details.odd > summary .model-details,
+      details.odd > * > .model-key-container,
+      details.odd > * > * > .model-key-container {
+        --md-icon-button-hover-state-layer-color: var(--oscd-base2);
+        --md-icon-button-hover-icon-color: var(--oscd-base01);
+      }
 
-    .render-value-container {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--mbg-gap-sm);
-    }
-
-    .render-value-actions {
-      display: flex;
-      align-items: center;
-      min-height: var(--mbg-height);
-    }
-
-    .read-only-indicator {
-      color: var(--oscd-base0);
-    }
-
-    .render-value-actions md-icon-button.dirty {
-      position: relative;
-      --md-icon-button-icon-color: var(--oscd-secondary);
-      --md-icon-button-hover-icon-color: var(--oscd-secondary);
-    }
-
-    .render-value-actions md-icon-button.dirty::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--oscd-secondary);
-    }
-
-    .value-error {
-      color: var(--oscd-error);
-      font-weight: bold;
-      margin: inherit;
-    }
-
-    .ied-name md-icon-button,
-    .search-field md-icon-button,
-    details.odd > summary .model-details,
-    details.odd > * > .model-key-container,
-    details.odd > * > * > .model-key-container {
-      --md-icon-button-hover-state-layer-color: var(--oscd-base2);
-      --md-icon-button-hover-icon-color: var(--oscd-base01);
-    }
-
-    details.odd > * > .model-key-container mbg-val-input[bType='Quality'],
-    details.odd > * > * > .model-key-container mbg-val-input[bType='Quality'],
-    details.odd > * > .model-key-container mbg-val-input[bType='Currency'],
-    details.odd > * > * > .model-key-container mbg-val-input[bType='Currency'],
-    details.odd > * > .model-key-container mbg-val-input[bType='Enum'],
-    details.odd > * > * > .model-key-container mbg-val-input[bType='Enum'] {
-      --md-sys-color-surface-container-highest: var(--oscd-base2);
-      --md-sys-color-surface-container: var(--oscd-base3);
-      --md-sys-color-secondary-container: var(--oscd-base2);
-    }
-
-    mbg-val-input[bType='Quality'],
-    mbg-val-input[bType='Currency'],
-    mbg-val-input[bType='Enum'] {
-      --md-sys-color-surface-container-highest: var(--oscd-base3);
-      --md-sys-color-surface-container: var(--oscd-base3);
-      --md-sys-color-secondary-container: var(--oscd-base2);
-    }
-
-    mbg-val-input {
-      --mbg-val-input-shape: var(--mbg-shape);
-      --mbg-val-input-space: var(--mbg-space);
-      --mbg-val-input-height: var(--mbg-height);
-    }
-
-    mbg-val-input.dirty {
-      --md-outlined-text-field-outline-color: var(--oscd-secondary);
-      --md-outlined-text-field-outline-width: 3px;
-
-      --md-outlined-select-text-field-outline-color: var(--oscd-secondary);
-      --md-outlined-select-text-field-outline-width: 3px;
-    }
-
-    .desc {
-      padding: var(--mbg-space) 0;
-      margin: auto;
-      font-size: var(--mbg-text-md);
-      font-style: italic;
-    }
-  `;
+      .desc {
+        padding: var(--mbg-space) 0;
+        margin: auto;
+        font-size: var(--mbg-text-md);
+        font-style: italic;
+      }
+    `,
+  ];
 }
