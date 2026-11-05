@@ -27,6 +27,14 @@ function sGroupMatches(val: Element, sGroup: number) {
   );
 }
 
+export function findSGValue(value: Element, sGroup: number) {
+  const val = Array.from(value.parentElement?.children ?? []).find(
+    v => sGroupMatches(v, sGroup) && v.nodeName === 'Val',
+  );
+
+  return val ?? null;
+}
+
 export function instantiatePath(
   path: PathSegment[],
   ln: Element,
