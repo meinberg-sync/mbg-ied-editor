@@ -402,6 +402,7 @@ export default class MbgIedEditor extends LitElement {
       width: 100%;
       --md-outlined-text-field-top-space: var(--mbg-space);
       --md-outlined-text-field-bottom-space: var(--mbg-space);
+      --md-outlined-text-field-container-shape: var(--mbg-shape);
     }
 
     #edit-name-tooltip {
