@@ -40,7 +40,7 @@ function renderReadOnlyIndicator() {
     class="render-value-actions read-only-indicator"
     title="This value is read-only (valKind is RO)"
   >
-    <md-icon role="img" aria-label="read-only">lock</md-icon>
+    <md-icon role="img" aria-label=${`read-only`}>lock</md-icon>
   </div>`;
 }
 
@@ -142,7 +142,7 @@ export class ValuesController implements ReactiveController {
                 ><md-icon>save</md-icon></md-icon-button
               >
               <md-icon-button
-                aria-label="Delete value"
+                aria-label=${`Delete value`}
                 @click=${() => {
                   this.remove(ln, [value], path);
                 }}
@@ -178,7 +178,7 @@ export class ValuesController implements ReactiveController {
               >
               ${isActSG
                 ? html`<md-icon-button
-                    aria-label="Delete all setting group values"
+                    aria-label=${`Delete all setting group values`}
                     @click=${() => {
                       this.remove(sg.ln, sg.values, sg.path, sg.sgNum);
                     }}

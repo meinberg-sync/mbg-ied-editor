@@ -11,6 +11,13 @@ export default /** @type {import("@web/test-runner").TestRunnerConfig} */ ({
     exportConditions: ['browser', 'development'],
   },
 
+  /** Load the scoped custom element registry polyfill before tests (needed by ScopedElementsMixin components such as oscd-scl-icon) */
+  testRunnerHtml: testFramework => `
+    <html><body>
+      <script type="module" src="/node_modules/@webcomponents/scoped-custom-element-registry/scoped-custom-element-registry.min.js"></script>
+      <script type="module" src="${testFramework}"></script>
+    </body></html>`,
+
   /** Filter out lit dev mode logs */
   filterBrowserLogs(log) {
     for (const arg of log.args) {

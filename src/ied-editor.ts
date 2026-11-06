@@ -492,7 +492,7 @@ export class IedEditor extends LitElement {
                 (['DA', 'BDA'].includes(key.tagName) && value.size > 0)
                   ? html`
                       <md-icon-button
-                        aria-label="Expand all"
+                        aria-label=${`Expand all`}
                         @click=${(e: Event) =>
                           this.handleExpandAll(
                             e,
@@ -575,7 +575,7 @@ export class IedEditor extends LitElement {
                 ><md-icon>edit</md-icon></md-icon-button
               >
               <md-icon-button
-                aria-label="Expand all"
+                aria-label=${`Expand all`}
                 @click=${(e: Event) =>
                   this.handleExpandAll(e, this.lnModels.expandPaths(lns, 1))}
                 ><md-icon>expand_all</md-icon></md-icon-button
@@ -614,19 +614,19 @@ export class IedEditor extends LitElement {
                       ${['LN'].includes(ln.tagName)
                         ? html`
                             <md-icon-button
-                              aria-label="Delete logical node"
+                              aria-label=${`Delete logical node`}
                               @click=${() => this.deleteLN(ln)}
                               ><md-icon>delete</md-icon></md-icon-button
                             >
                           `
                         : nothing}
                       <md-icon-button
-                        aria-label="Edit logical node"
+                        aria-label=${`Edit logical node`}
                         @click=${() => this.openEditDialog(ln)}
                         ><md-icon>edit</md-icon></md-icon-button
                       >
                       <md-icon-button
-                        aria-label="Expand all"
+                        aria-label=${`Expand all`}
                         @click=${(e: Event) =>
                           this.handleExpandAll(
                             e,
@@ -699,13 +699,13 @@ export class IedEditor extends LitElement {
                   <div class="model-details">
                     <div class="model-actions">
                       <md-icon-button
-                        aria-label="Edit access point"
+                        aria-label=${`Edit access point`}
                         @click=${() =>
                           this.openEditDialog(server.parentElement!)}
                         ><md-icon>edit</md-icon></md-icon-button
                       >
                       <md-icon-button
-                        aria-label="Expand all"
+                        aria-label=${`Expand all`}
                         @click=${(e: Event) =>
                           this.handleExpandAll(
                             e,

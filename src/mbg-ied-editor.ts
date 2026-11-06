@@ -197,7 +197,7 @@ export default class MbgIedEditor extends LitElement {
               </md-outlined-select>
               <div class="ied-button-container">
                 <md-outlined-icon-button
-                  aria-label="Edit IED Name"
+                  aria-label=${`Edit IED Name`}
                   class="hidden-input ${this.ied ? 'show' : ''}"
                   id="edit-name-button"
                   @click=${() => this.toggleNameInput()}
@@ -228,7 +228,7 @@ export default class MbgIedEditor extends LitElement {
                 }}
               >
                 <md-icon-button
-                  aria-label="Save"
+                  aria-label=${`Save`}
                   slot="trailing-icon"
                   @click=${() => this.enterIEDName()}
                 >
