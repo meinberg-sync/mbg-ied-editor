@@ -40,15 +40,47 @@ import { ValuesController, valuesStyles } from './utils/value-controller.js';
 import type { EditField } from './components/edit-dialog.js';
 import type { SearchChangedDetail } from './components/ied-search-filter.js';
 
-import 'mbg-val-input/mbg-val-input.js';
 import './components/alert-dialog.js';
 import './components/edit-dialog.js';
 import './components/ied-search-filter.js';
+
+import 'mbg-val-input/mbg-val-input.js';
 
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import '@material/web/dialog/dialog.js';
 import '@material/web/button/text-button.js';
+
+import '@omicronenergy/oscd-ui/scl-icon/oscd-scl-icon.js';
+
+const SCL_ICON_BY_NODE: Record<string, string> = {
+  LDevice: 'logicalDeviceIcon',
+  LN0: 'lNIcon',
+  LN: 'lNIcon',
+  DO: 'dOIcon',
+  SDO: 'dOIcon',
+  DA: 'dAIcon',
+  BDA: 'dAIcon',
+};
+
+function renderNodeType(key: Element) {
+  const { nodeName } = key;
+  const dataType =
+    key.getAttribute('lnType') ||
+    key.getAttribute('type') ||
+    key.getAttribute('bType');
+  const icon = SCL_ICON_BY_NODE[nodeName];
+
+  return html`
+    <span class="type" title=${nodeName}>
+      ${icon
+        ? html`<oscd-scl-icon aria-label=${nodeName}>${icon}</oscd-scl-icon>`
+        : nothing}
+      ${!icon || nodeName === 'LDevice' ? nodeName : nothing}
+      ${dataType ? html`<span class="subtype">${dataType}</span>` : nothing}
+    </span>
+  `;
+}
 
 function toggleExpandButton(button: HTMLElement): boolean {
   const buttonIcon = button.querySelector('md-icon') as HTMLSpanElement;
@@ -59,21 +91,6 @@ function toggleExpandButton(button: HTMLElement): boolean {
     expandContent ? 'Collapse all' : 'Expand all',
   );
   return expandContent;
-}
-
-function renderDataModelSpan(key: Element) {
-  if (key.nodeName === 'DA' || key.nodeName === 'BDA') {
-    return html`<span class="type"
-      >${key.nodeName}
-      <span class="subtype"
-        >(${key.getAttribute('type') || key.getAttribute('bType')})</span
-      ></span
-    >`;
-  }
-  return html`<span class="type"
-    >${key.nodeName}
-    <span class="subtype">(${key.getAttribute('type')})</span></span
-  >`;
 }
 
 export class IedEditor extends LitElement {
@@ -456,7 +473,7 @@ export class IedEditor extends LitElement {
             </div>
 
             <div class="model-details">
-              ${renderDataModelSpan(key)}
+              ${renderNodeType(key)}
               <div class="model-actions">
                 <md-icon-button
                   aria-label=${`Edit ${key.getAttribute('name')}`}
@@ -550,7 +567,7 @@ export class IedEditor extends LitElement {
         <summary>
           ${ld.getAttribute('inst')}
           <div class="model-details">
-            <span class="type">${ld.nodeName}</span>
+            ${renderNodeType(ld)}
             <div class="model-actions">
               <md-icon-button
                 aria-label=${`Edit ${ld.getAttribute('inst')}`}
@@ -592,14 +609,7 @@ export class IedEditor extends LitElement {
                     'lnClass',
                   )}${ln.getAttribute('inst')}
                   <div class="model-details">
-                    <div>
-                      <span class="type">
-                        ${ln.nodeName}
-                        <span class="subtype"
-                          >(${ln.getAttribute('lnType')})</span
-                        >
-                      </span>
-                    </div>
+                    <div>${renderNodeType(ln)}</div>
                     <div class="model-actions">
                       ${['LN'].includes(ln.tagName)
                         ? html`
@@ -845,11 +855,21 @@ export class IedEditor extends LitElement {
       }
 
       span.type {
+        --md-icon-size: 20px;
+
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        line-height: 0;
         opacity: 0;
         transition: opacity 0.05s cubic-bezier(0.9, 0, 1, 0.45);
         padding-left: 2rem;
         font-weight: normal;
         font-size: var(--mbg-text-md);
+      }
+
+      span.type oscd-scl-icon {
+        display: inline-flex;
       }
 
       span.subtype {
