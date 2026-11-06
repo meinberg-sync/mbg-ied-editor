@@ -305,7 +305,7 @@ export class IedSearchFilter extends LitElement {
           >
           </md-outlined-text-field>
           <md-outlined-icon-button
-            aria-label="Clear search"
+            aria-label=${`Clear search`}
             title="Clear search"
             class="clear-btn"
             ?disabled=${!this.searchTerm}
@@ -314,7 +314,7 @@ export class IedSearchFilter extends LitElement {
             <md-icon>clear</md-icon>
           </md-outlined-icon-button>
           <md-outlined-icon-button
-            aria-label="Search settings"
+            aria-label=${`Search settings`}
             title="Search settings"
             @click=${() => this.toggleSearchSettings()}
             ><md-icon
@@ -324,7 +324,7 @@ export class IedSearchFilter extends LitElement {
             ></md-outlined-icon-button
           >
           <md-outlined-icon-button
-            aria-label="Search help"
+            aria-label=${`Search help`}
             title="Search help"
             class="search-help-btn"
             @click=${() => {
