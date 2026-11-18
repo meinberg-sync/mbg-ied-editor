@@ -1,5 +1,8 @@
 import { LitElement, html, css, TemplateResult } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
+import { ifDefined } from 'lit/directives/if-defined.js';
+import { classMap } from 'lit/directives/class-map.js';
 
 import { MdDialog } from '@material/web/dialog/dialog.js';
 import '@material/web/button/text-button.js';
@@ -9,7 +12,13 @@ export type EditField = {
   label: string;
   attribute: string;
   value: string;
-  validate?: (value: string) => string | null;
+  optional?: boolean;
+  type?: 'text' | 'number' | 'textarea';
+  min?: string;
+  maxLength?: string;
+  pattern?: RegExp;
+  dependsOn?: string[];
+  validate?: (value: string, values: Record<string, string>) => string | null;
 };
 
 export class EditDialog extends LitElement {
@@ -40,13 +49,35 @@ export class EditDialog extends LitElement {
   }
 
   private validateField(field: EditField) {
-    if (!field.validate) return;
-    const error = field.validate(this.values[field.attribute] ?? '');
+    const value = this.values[field.attribute] ?? '';
+    let error: string | null = null;
+
+    if (value === '') {
+      if (!field.optional) {
+        error = `${field.label} cannot be empty!`;
+      }
+    } else if (field.maxLength && value.length > Number(field.maxLength)) {
+      error = `${field.label} exceeds the character limit.`;
+    } else if (field.pattern && !field.pattern.test(value)) {
+      error = `${field.label} has an invalid format.`;
+    } else {
+      error = field.validate?.(value, this.values) ?? null;
+    }
+
     this.errors = { ...this.errors, [field.attribute]: error ?? '' };
   }
 
+  private validateWithDeps(field: EditField) {
+    this.validateField(field);
+    this.fields
+      .filter(f => f.dependsOn?.includes(field.attribute))
+      .forEach(f => this.validateField(f));
+  }
+
   private handleSave() {
+    this.fields.forEach(f => this.validateField(f));
     if (this.hasErrors) return;
+
     this.dispatchEvent(
       new CustomEvent('save', {
         detail: { ...this.values },
@@ -70,42 +101,36 @@ export class EditDialog extends LitElement {
     );
   }
 
+  private handleInput(e: Event, field: EditField) {
+    const { value } = e.target as HTMLInputElement;
+    this.values = { ...this.values, [field.attribute]: value };
+
+    const errorDeps = this.fields.some(
+      f => f.dependsOn?.includes(field.attribute) && this.errors[f.attribute],
+    );
+
+    if (this.errors[field.attribute] || errorDeps) {
+      this.validateWithDeps(field);
+    }
+  }
+
   private renderField(field: EditField) {
     const errorMsg = this.errors[field.attribute] ?? '';
 
-    if (field.attribute === 'inst') {
-      return html`
-        <md-outlined-text-field
-          label=${field.label}
-          type="number"
-          min="1"
-          .value=${this.values[field.attribute] ?? ''}
-          ?error=${!!errorMsg}
-          .errorText=${errorMsg}
-          @input=${(e: Event) => {
-            const { value } = e.target as HTMLInputElement;
-            if (/^\d*$/.test(value)) {
-              this.values = { ...this.values, [field.attribute]: value };
-            }
-          }}
-          @change=${() => this.validateField(field)}
-        ></md-outlined-text-field>
-      `;
-    }
-
     return html`
       <md-outlined-text-field
+        class=${classMap({
+          'desc-textarea': field.attribute === 'desc',
+        })}
         label=${field.label}
+        type=${field.type ?? 'text'}
+        min=${ifDefined(field.min)}
+        maxLength=${ifDefined(field.maxLength)}
         .value=${this.values[field.attribute] ?? ''}
         ?error=${!!errorMsg}
         .errorText=${errorMsg}
-        @input=${(e: Event) => {
-          this.values = {
-            ...this.values,
-            [field.attribute]: (e.target as HTMLInputElement).value,
-          };
-        }}
-        @change=${() => this.validateField(field)}
+        @input=${(e: Event) => this.handleInput(e, field)}
+        @change=${() => this.validateWithDeps(field)}
       ></md-outlined-text-field>
     `;
   }
@@ -115,7 +140,11 @@ export class EditDialog extends LitElement {
       <md-dialog id="edit-dialog" @closed=${this.handleClosed}>
         <div slot="headline">${this.headline}</div>
         <form slot="content" id="edit-form">
-          ${this.fields.map(field => this.renderField(field))}
+          ${repeat(
+            this.fields,
+            field => field.attribute,
+            field => this.renderField(field),
+          )}
         </form>
         <div slot="actions">
           <md-text-button class="cancel" @click=${this.handleCancel}
@@ -141,7 +170,16 @@ export class EditDialog extends LitElement {
     }
 
     md-outlined-text-field {
+      --md-outlined-text-field-top-space: var(--mbg-space);
+      --md-outlined-text-field-bottom-space: var(--mbg-space);
+      --md-outlined-text-field-container-shape: var(--mbg-shape);
+
       width: 100%;
+      min-height: 40px;
+    }
+
+    .desc-textarea {
+      resize: vertical;
     }
 
     .cancel {

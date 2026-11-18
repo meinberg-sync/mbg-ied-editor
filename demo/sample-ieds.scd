@@ -87,6 +87,7 @@
 				</LDevice>
 			</Server>
 		</AccessPoint>
+		<AccessPoint name="AP2"><ServerAt apName="AP1"/></AccessPoint>
 	</IED>
 	<DataTypeTemplates>
 		<LNodeType lnClass="LLN0" id="Dummy.LLN0" desc="Logical device LN: parent">

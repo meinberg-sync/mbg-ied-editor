@@ -5,6 +5,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { property, state } from 'lit/decorators.js';
 
 import { identity } from '@openenergytools/scl-lib';
+import { EditV2 } from '@omicronenergy/oscd-api';
 import { newEditEventV2 } from '@omicronenergy/oscd-api/utils.js';
 
 import {
@@ -36,6 +37,11 @@ import {
 } from './utils/ln-model.js';
 
 import { ValuesController, valuesStyles } from './utils/value-controller.js';
+
+import {
+  buildAPRenameEdits,
+  buildLDeviceRenameEdits,
+} from './utils/rename-edits.js';
 
 import type { EditField } from './components/edit-dialog.js';
 import type { SearchChangedDetail } from './components/ied-search-filter.js';
@@ -218,47 +224,127 @@ export class IedEditor extends LitElement {
     if (element.tagName === 'LN0') {
       this.editDialogHeadline = `Edit ${get('lnClass') || 'LLN0'}`;
       this.editDialogFields = [
-        { label: 'Description', attribute: 'desc', value: get('desc') },
+        {
+          label: 'Description',
+          attribute: 'desc',
+          value: get('desc'),
+          optional: true,
+          type: 'textarea',
+        },
       ];
     } else if (element.tagName === 'LN') {
       const lnClass = get('lnClass');
-      const siblings = Array.from(
-        element.parentElement!.querySelectorAll(`LN[lnClass="${lnClass}"]`),
-      ).filter(sibling => sibling !== element);
+      const taken = new Set(
+        Array.from(
+          element.parentElement!.querySelectorAll(`LN[lnClass="${lnClass}"]`),
+        )
+          .filter(sibling => sibling !== element)
+          .map(
+            sibling =>
+              `${sibling.getAttribute('prefix') ?? ''}|${sibling.getAttribute('inst') ?? ''}`,
+          ),
+      );
 
       this.editDialogHeadline = `Edit LN ${get('prefix')}${get('lnClass')}${get('inst')}`;
       this.editDialogFields = [
-        { label: 'Description', attribute: 'desc', value: get('desc') },
-        { label: 'Prefix', attribute: 'prefix', value: get('prefix') },
         {
           label: 'Instance',
           attribute: 'inst',
           value: get('inst'),
-          validate: (value: string) =>
-            siblings.some(s => s.getAttribute('inst') === value)
-              ? `Instance ${value} of ${lnClass} already exists!`
-              : null,
+          type: 'number',
+          min: '1',
+          pattern: /^\d*$/,
+          dependsOn: ['prefix'],
+          validate: (inst, values) => {
+            const prefix = values.prefix?.trim() ?? '';
+            return taken.has(`${prefix}|${inst}`)
+              ? `${prefix}${lnClass}${inst} already exists!`
+              : null;
+          },
+        },
+        {
+          label: 'Prefix',
+          attribute: 'prefix',
+          value: get('prefix'),
+          optional: true,
+          maxLength: '11',
+          pattern: /^[A-Za-z][0-9A-Za-z_]*$/,
+        },
+        {
+          label: 'Description',
+          attribute: 'desc',
+          value: get('desc'),
+          optional: true,
+          type: 'textarea',
         },
       ];
     } else if (element.tagName === 'LDevice') {
-      this.editDialogHeadline = `Edit LDevice ${get('inst')}`;
+      const inst = get('inst');
+      const siblings = Array.from(
+        element
+          .closest('IED')!
+          .querySelectorAll(':scope > AccessPoint > Server > LDevice'),
+      )
+        .filter(sibling => sibling !== element)
+        .map(sibling => sibling.getAttribute('inst') ?? '');
+
+      this.editDialogHeadline = `Edit LDevice ${inst}`;
       this.editDialogFields = [
-        { label: 'Description', attribute: 'desc', value: get('desc') },
-        { label: 'LD Name', attribute: 'ldName', value: get('ldName') },
+        {
+          label: 'Logical Device Inst',
+          attribute: 'inst',
+          value: inst,
+          maxLength: '64',
+          pattern: /^[A-Za-z0-9][0-9A-Za-z_]*$/,
+          validate: (value: string) =>
+            siblings.includes(value)
+              ? `LDevice inst "${value}" already exists!`
+              : null,
+        },
+        {
+          label: 'Logical Device Name',
+          attribute: 'ldName',
+          value: get('ldName'),
+          optional: true,
+          maxLength: '64',
+          pattern: /^[A-Za-z][0-9A-Za-z_]*$/,
+        },
+        {
+          label: 'Description',
+          attribute: 'desc',
+          value: get('desc'),
+          optional: true,
+          type: 'textarea',
+        },
       ];
     } else if (element.tagName === 'AccessPoint') {
-      this.editDialogHeadline = `Edit Access Point ${get('name')}`;
+      const name = get('name');
+      const siblings = Array.from(
+        element.parentElement!.querySelectorAll(':scope > AccessPoint'),
+      )
+        .filter(sibling => sibling !== element)
+        .map(sibling => sibling.getAttribute('name') ?? '');
+
+      this.editDialogHeadline = `Edit Access Point ${name}`;
       this.editDialogFields = [
         {
           label: 'Name',
           attribute: 'name',
-          value: get('name'),
+          value: name,
+          maxLength: '32',
+          pattern: /^[A-Za-z0-9][0-9A-Za-z_]*$/,
           validate: (value: string) =>
-            value.trim() === ''
-              ? 'The Access Point name cannot be empty!'
+            siblings.includes(value)
+              ? `Access Point "${value}" already exists!`
               : null,
         },
-        { label: 'Description', attribute: 'desc', value: get('desc') },
+        {
+          label: 'Description',
+          attribute: 'desc',
+          value: get('desc'),
+          optional: true,
+          type: 'textarea',
+        },
       ];
     } else if (['DO', 'SDO', 'DA', 'BDA'].includes(element.tagName)) {
       this.pendingEditElement = null;
@@ -280,7 +366,13 @@ export class IedEditor extends LitElement {
 
       this.editDialogHeadline = `Edit ${get('name')}`;
       this.editDialogFields = [
-        { label: 'Description', attribute: 'desc', value: currentDesc },
+        {
+          label: 'Description',
+          attribute: 'desc',
+          value: currentDesc,
+          optional: true,
+          type: 'textarea',
+        },
       ];
     }
 
@@ -316,9 +408,17 @@ export class IedEditor extends LitElement {
 
     if (!this.pendingEditElement) return;
 
-    this.dispatchEvent(
-      newEditEventV2(buildAttributeEdits(this.pendingEditElement, e.detail)),
-    );
+    const element = this.pendingEditElement;
+    const edits: EditV2[] = [buildAttributeEdits(element, e.detail)];
+
+    if (element.tagName === 'LDevice' && e.detail.inst !== undefined) {
+      edits.push(...buildLDeviceRenameEdits(element, e.detail.inst.trim()));
+    }
+    if (element.tagName === 'AccessPoint' && e.detail.name !== undefined) {
+      edits.push(...buildAPRenameEdits(element, e.detail.name.trim()));
+    }
+
+    this.dispatchEvent(newEditEventV2(edits));
 
     this.pendingEditElement = null;
     this.editDialogOpen = false;
@@ -693,7 +793,7 @@ export class IedEditor extends LitElement {
             this.ied?.querySelectorAll(':scope > AccessPoint > Server') ?? [],
           ).map(
             server =>
-              html` <details class="odd" open>
+              html` <details class="ap-server odd" open>
                 <summary>
                   ${server.parentElement?.getAttribute('name')} Server
                   <div class="model-details">
@@ -782,6 +882,10 @@ export class IedEditor extends LitElement {
         background: var(--oscd-base2);
         color: var(--oscd-base01);
         max-width: 100%;
+      }
+
+      details.ap-server {
+        max-width: fit-content;
       }
 
       details.odd {
