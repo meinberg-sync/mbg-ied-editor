@@ -89,24 +89,29 @@ export function getMostNestedElement(
   return parentElt ?? null;
 }
 
-export function getSGCB(ld: Element): Element | null {
-  if (ld.querySelector(':scope > LN0 > SettingControl')) {
-    return ld.querySelector(':scope > LN0 > SettingControl') as Element;
-  }
+export function getSGCB(
+  ld: Element | null,
+  visited: Set<Element> = new Set(),
+): Element | null {
+  if (!ld || visited.has(ld)) return null;
 
-  if (!ld.querySelector(':scope > LN0 > DOI[name="GrRef"]')) {
-    return null;
-  }
+  visited.add(ld);
+
+  const sgcb = ld.querySelector(':scope > LN0 > SettingControl');
+  if (sgcb) return sgcb;
 
   const setSrcRef = ld.querySelector(
     ':scope > LN0 > DOI[name="GrRef"] > DAI[name="setSrcRef"] > Val',
   );
-  const sgcbRef = setSrcRef?.textContent?.trim().replace(/^@/, '') ?? '';
-  const ldRef = ld
-    .closest('Server')!
-    .querySelector(`:scope > LDevice[inst="${sgcbRef}"]`);
+  if (!setSrcRef) return null;
 
-  return getSGCB(ldRef as Element);
+  const sgcbRef = setSrcRef.textContent?.trim().replace(/^@/, '') ?? '';
+  const ldRef =
+    ld
+      .closest('Server')
+      ?.querySelector(`:scope > LDevice[inst="${sgcbRef}"]`) ?? null;
+
+  return getSGCB(ldRef, visited);
 }
 
 export function getTemplateDescription(template: Element, target: Element) {
