@@ -12,16 +12,29 @@ export interface LNReferences {
   labels: string[];
 }
 
+export type LNAttributes = {
+  ldInst: string;
+  lnClass: string;
+  lnInst: string;
+  prefix: string;
+};
+
 export function findLNReferences(ln: Element): LNReferences {
-  const ldInst = (ln.parentNode as Element).getAttribute('inst') ?? '';
-  const lnClass = ln.getAttribute('lnClass') ?? '';
-  const lnInst = ln.getAttribute('inst') ?? '';
-  const prefix = ln.getAttribute('prefix') ?? '';
-  const lnIdentifier = `${lnClass}${lnInst}`;
+  const lnAttrs: LNAttributes = {
+    ldInst: (ln.parentNode as Element).getAttribute('inst') ?? '',
+    lnClass: ln.getAttribute('lnClass') ?? '',
+    lnInst: ln.getAttribute('inst') ?? '',
+    prefix: ln.getAttribute('prefix') ?? '',
+  };
+
+  const lnIdentifier = `${lnAttrs.prefix}${lnAttrs.lnClass}${lnAttrs.lnInst}`;
 
   const labels: string[] = [];
   Array.from(ln.parentElement?.querySelectorAll('* DAI') ?? []).forEach(elt => {
-    if (elt.querySelector('Val')?.textContent === `${ldInst}/${lnIdentifier}`) {
+    if (
+      elt.querySelector('Val')?.textContent ===
+      `${lnAttrs.ldInst}/${lnIdentifier}`
+    ) {
       const splitPath = getInitializedEltPath(elt).split(' ');
       labels.push(`LN ${splitPath[2]}${splitPath[3]}`);
     }
@@ -32,10 +45,10 @@ export function findLNReferences(ln: Element): LNReferences {
     ?.querySelectorAll('FCDA')
     .forEach(fcda => {
       if (
-        fcda.getAttribute('ldInst') === ldInst &&
-        fcda.getAttribute('lnClass') === lnClass &&
-        (fcda.getAttribute('lnInst') ?? '') === lnInst &&
-        (fcda.getAttribute('prefix') ?? '') === prefix
+        fcda.getAttribute('ldInst') === lnAttrs.ldInst &&
+        fcda.getAttribute('lnClass') === lnAttrs.lnClass &&
+        (fcda.getAttribute('lnInst') ?? '') === lnAttrs.lnInst &&
+        (fcda.getAttribute('prefix') ?? '') === lnAttrs.prefix
       ) {
         fcdas.push(fcda);
         const datasetName = fcda.parentElement?.getAttribute('name') ?? '';

@@ -4,6 +4,7 @@ import type { EditV2 } from '@omicronenergy/oscd-api';
 import {
   buildAPRenameEdits,
   buildLDeviceRenameEdits,
+  buildLNRenameEdits,
 } from '../src/utils/rename-edits.js';
 
 import { getSGCB } from '../src/utils/ied-scl.js';
@@ -69,6 +70,123 @@ describe('buildLDeviceRenameEdits', () => {
     expect(foreign.getAttribute('ldInst')).to.equal('Application');
     expect(q('FCDA').getAttribute('ldInst')).to.equal('App');
     expect(q('GSE').getAttribute('ldInst')).to.equal('App');
+  });
+});
+
+describe('buildLDeviceRenameEdits: bare "inst/..." references', () => {
+  let doc: Document;
+  const val = (scope: string, doi: string) =>
+    doc.querySelector(`${scope} DOI[name="${doi}"] Val`)!.textContent;
+
+  beforeEach(() => {
+    doc = new DOMParser().parseFromString(multipleIedsScd, 'application/xml');
+    const ld = doc.querySelector('IED[name="IED1"] LDevice[inst="LD1"]')!;
+    apply([
+      { element: ld, attributes: { inst: 'LDX' } },
+      ...buildLDeviceRenameEdits(ld, 'LDX'),
+    ]);
+  });
+
+  it('rewrites all three reference forms inside the IED', () => {
+    expect(val('IED[name="IED1"]', 'BareRef')).to.equal('LDX/LTPP1');
+    expect(val('IED[name="IED1"]', 'AtRef')).to.equal('@LDX/LTPP1.Beh');
+    expect(val('IED[name="IED1"]', 'FullRef')).to.equal(
+      'IED1LDX/LTPP1.Beh.stVal',
+    );
+  });
+
+  it('rewrites full references from other IEDs but not bare ones', () => {
+    expect(val('IED[name="IED2"]', 'RemoteRef')).to.equal('IED1LDX/LTPP1');
+    expect(val('IED[name="IED2"]', 'ForeignBareRef')).to.equal('LD1/LTPP1');
+  });
+});
+
+describe('buildLNRenameEdits', () => {
+  let doc: Document;
+  const ied1 = 'IED[name="IED1"]';
+  const ied2 = 'IED[name="IED2"]';
+  const val = (scope: string, doi: string) =>
+    doc.querySelector(`${scope} DOI[name="${doi}"] Val`)!.textContent;
+  const fcda = (lnInst: string) =>
+    doc.querySelector(`FCDA[lnClass="LTPP"][lnInst="${lnInst}"]`)!;
+  const ln = (selector: string) =>
+    doc.querySelector(`${ied1} LDevice[inst="LD1"] > ${selector}`)!;
+
+  /** Mirrors IedEditor.handleEditSave for an LN. */
+  function rename(target: Element, prefix: string, lnInst: string) {
+    apply([
+      { element: target, attributes: { prefix: prefix || null, inst: lnInst } },
+      ...buildLNRenameEdits(target, {
+        ldInst: 'LD1',
+        lnClass: target.getAttribute('lnClass') ?? '',
+        prefix,
+        lnInst,
+      }),
+    ]);
+  }
+
+  beforeEach(() => {
+    doc = new DOMParser().parseFromString(multipleIedsScd, 'application/xml');
+  });
+
+  it('returns no edits when prefix and inst are unchanged', () => {
+    const target = ln('LN[lnClass="LTPP"][inst="1"]');
+    expect(
+      buildLNRenameEdits(target, {
+        ldInst: 'LD1',
+        lnClass: 'LTPP',
+        prefix: '',
+        lnInst: '1',
+      }),
+    ).to.deep.equal([]);
+  });
+
+  describe('adding a prefix (LTPP1 -> GM_LTPP1)', () => {
+    beforeEach(() => rename(ln('LN[lnClass="LTPP"][inst="1"]'), 'GM_', '1'));
+
+    it('updates the FCDA and leaves LTPP12 alone', () => {
+      expect(fcda('1').getAttribute('prefix')).to.equal('GM_');
+      expect(fcda('12').getAttribute('prefix')).to.equal('');
+    });
+
+    it('updates ExtRefs in other IEDs that point at the LN', () => {
+      const extRef = doc.querySelector(`${ied2} ExtRef[lnClass="LTPP"]`)!;
+      expect(extRef.getAttribute('prefix')).to.equal('GM_');
+      expect(extRef.getAttribute('lnInst')).to.equal('1');
+    });
+
+    it('rewrites bare, "@" and full object references in the IED', () => {
+      expect(val(ied1, 'BareRef')).to.equal('LD1/GM_LTPP1');
+      expect(val(ied1, 'AtRef')).to.equal('@LD1/GM_LTPP1.Beh');
+      expect(val(ied1, 'FullRef')).to.equal('IED1LD1/GM_LTPP1.Beh.stVal');
+    });
+
+    it('does not touch a longer inst that shares the LN name', () => {
+      expect(val(ied1, 'LongerInstRef')).to.equal('LD1/LTPP12');
+    });
+
+    it('rewrites full references from other IEDs but not bare ones', () => {
+      expect(val(ied2, 'RemoteRef')).to.equal('IED1LD1/GM_LTPP1');
+      expect(val(ied2, 'ForeignBareRef')).to.equal('LD1/LTPP1');
+    });
+  });
+
+  it('updates lnInst references when only the inst changes', () => {
+    rename(ln('LN[lnClass="LTPP"][inst="1"]'), '', '3');
+
+    expect(
+      doc.querySelectorAll('FCDA[lnClass="LTPP"][lnInst="3"]'),
+    ).to.have.length(1);
+    expect(val(ied1, 'BareRef')).to.equal('LD1/LTPP3');
+    expect(val(ied1, 'LongerInstRef')).to.equal('LD1/LTPP12');
+  });
+
+  it('removes the prefix attribute from references when cleared', () => {
+    rename(ln('LN[lnClass="LTPP"][inst="1"]'), 'GM_', '1');
+    rename(ln('LN[lnClass="LTPP"][prefix="GM_"]'), '', '1');
+
+    expect(fcda('1').hasAttribute('prefix')).to.be.false;
+    expect(val(ied1, 'BareRef')).to.equal('LD1/LTPP1');
   });
 });
 

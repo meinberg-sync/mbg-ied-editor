@@ -41,6 +41,7 @@ import { ValuesController, valuesStyles } from './utils/value-controller.js';
 import {
   buildAPRenameEdits,
   buildLDeviceRenameEdits,
+  buildLNRenameEdits,
 } from './utils/rename-edits.js';
 
 import type { EditField } from './components/edit-dialog.js';
@@ -411,6 +412,16 @@ export class IedEditor extends LitElement {
     const element = this.pendingEditElement;
     const edits: EditV2[] = [buildAttributeEdits(element, e.detail)];
 
+    if (element.tagName === 'LN') {
+      edits.push(
+        ...buildLNRenameEdits(element, {
+          ldInst: element.closest('LDevice')?.getAttribute('inst') ?? '',
+          lnClass: element.getAttribute('lnClass') ?? '',
+          lnInst: (e.detail.inst ?? '').trim(),
+          prefix: (e.detail.prefix ?? '').trim(),
+        }),
+      );
+    }
     if (element.tagName === 'LDevice' && e.detail.inst !== undefined) {
       edits.push(...buildLDeviceRenameEdits(element, e.detail.inst.trim()));
     }
