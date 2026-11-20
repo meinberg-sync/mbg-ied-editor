@@ -20,6 +20,25 @@ export function hasValues(values: Values | Element[] | undefined): boolean {
   return Array.isArray(values) && values.length > 0;
 }
 
+export function getDAILabel(dai: Element): string {
+  const owner = dai.closest('LN, LN0');
+  const names: string[] = [];
+  for (
+    let el: Element | null = dai;
+    el && el !== owner;
+    el = el.parentElement
+  ) {
+    names.unshift(el.getAttribute('name') ?? '');
+  }
+  if (!owner) return names.join('.');
+
+  const iedName = owner.closest('IED')?.getAttribute('name') ?? '';
+  const ldInst = owner.closest('LDevice')?.getAttribute('inst') ?? '';
+  const lnName = `${owner.getAttribute('prefix') ?? ''}${owner.getAttribute('lnClass') ?? ''}${owner.getAttribute('inst') ?? ''}`;
+
+  return `${iedName} ${ldInst}/${lnName}.${names.join('.')}`;
+}
+
 export function getValues(
   instance: Element,
   dataModel: DataModel,

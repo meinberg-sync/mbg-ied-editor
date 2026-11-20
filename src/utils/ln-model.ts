@@ -1,11 +1,17 @@
-import { identity } from '@openenergytools/scl-lib';
+import { identity, isPublic } from '@openenergytools/scl-lib';
 
 import {
   DataModel,
   getDataModel,
-  getInitializedEltPath,
   getTypeIndex,
+  getDAILabel,
 } from './ied-data-model.js';
+
+export const escapeRegExp = (s: string) =>
+  s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const lnRefPattern = (ldRef: string, lnName: string) =>
+  new RegExp(`^${escapeRegExp(`${ldRef}/${lnName}`)}(?=\\.|$)`);
 
 export interface LNReferences {
   fcdas: Element[];
@@ -19,6 +25,31 @@ export type LNAttributes = {
   prefix: string;
 };
 
+export function scopeLNReferences(
+  ln: Element,
+): { ldRef: string; vals: Element[] }[] {
+  const ld = ln.closest('LDevice')!;
+  const ldInst = ld.getAttribute('inst') ?? '';
+
+  const ied = ln.closest('IED')!;
+  const iedName = ied.getAttribute('name') ?? '';
+
+  const allVals = Array.from(
+    ied.ownerDocument.querySelectorAll(':root > IED DAI > Val'),
+  ).filter(isPublic);
+  const localVals = Array.from(ied.querySelectorAll('DAI > Val')).filter(
+    isPublic,
+  );
+
+  return ld.hasAttribute('ldName')
+    ? [{ ldRef: ld.getAttribute('ldName')!, vals: allVals }]
+    : [
+        { ldRef: `${iedName}${ldInst}`, vals: allVals },
+        { ldRef: `@${ldInst}`, vals: localVals },
+        { ldRef: ldInst, vals: localVals },
+      ];
+}
+
 export function findLNReferences(ln: Element): LNReferences {
   const lnAttrs: LNAttributes = {
     ldInst: (ln.parentNode as Element).getAttribute('inst') ?? '',
@@ -27,17 +58,21 @@ export function findLNReferences(ln: Element): LNReferences {
     prefix: ln.getAttribute('prefix') ?? '',
   };
 
-  const lnIdentifier = `${lnAttrs.prefix}${lnAttrs.lnClass}${lnAttrs.lnInst}`;
-
+  const lnName = `${lnAttrs.prefix}${lnAttrs.lnClass}${lnAttrs.lnInst}`;
   const labels: string[] = [];
-  Array.from(ln.parentElement?.querySelectorAll('* DAI') ?? []).forEach(elt => {
-    if (
-      elt.querySelector('Val')?.textContent ===
-      `${lnAttrs.ldInst}/${lnIdentifier}`
-    ) {
-      const splitPath = getInitializedEltPath(elt).split(' ');
-      labels.push(`LN ${splitPath[2]}${splitPath[3]}`);
-    }
+  const seen = new Set<Element>();
+
+  scopeLNReferences(ln).forEach(({ ldRef, vals }) => {
+    const pattern = lnRefPattern(ldRef, lnName);
+    vals.forEach(val => {
+      const dai = val.parentElement;
+      if (!dai || seen.has(dai)) return;
+
+      if (!pattern.test(val.textContent?.trim() ?? '')) return;
+
+      seen.add(dai);
+      labels.push(getDAILabel(dai));
+    });
   });
 
   const fcdas: Element[] = [];

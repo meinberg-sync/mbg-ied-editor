@@ -1,10 +1,12 @@
 import { EditV2, SetAttributes, SetTextContent } from '@omicronenergy/oscd-api';
+import { isPublic } from '@openenergytools/scl-lib';
 
-import type { LNAttributes } from './ln-model.js';
-
-const isPublic = (el: Element) => !el.closest('Private');
-
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+import {
+  escapeRegExp,
+  lnRefPattern,
+  scopeLNReferences,
+  type LNAttributes,
+} from './ln-model.js';
 
 const attribute = (elt: Element, name: string) => elt.getAttribute(name) ?? '';
 
@@ -59,34 +61,16 @@ function rewriteVals(
 }
 
 function rewriteLNObjectRefs(
-  ied: Element,
-  iedName: string,
-  ld: Element,
+  ln: Element,
   oldAttrs: LNAttributes,
   newAttrs: LNAttributes,
 ) {
   const oldLN = `${oldAttrs.prefix}${oldAttrs.lnClass}${oldAttrs.lnInst}`;
-  const newLN = `${newAttrs.prefix}${newAttrs.lnClass}${newAttrs.lnInst}`;
+  const newLN = `${newAttrs.prefix}${oldAttrs.lnClass}${newAttrs.lnInst}`;
 
-  const rewriteTargets = (vals: Iterable<Element>, ldRef: string) =>
-    rewriteVals(
-      vals,
-      new RegExp(`^${escapeRegExp(`${ldRef}/${oldLN}`)}(?=\\.|$)`),
-      `${ldRef}/${newLN}`,
-    );
-
-  const allVals = ied.ownerDocument.querySelectorAll(':root > IED DAI > Val');
-  const localVals = ied.querySelectorAll('DAI > Val');
-
-  if (ld.hasAttribute('ldName')) {
-    return rewriteTargets(allVals, attribute(ld, 'ldName'));
-  }
-
-  return [
-    ...rewriteTargets(allVals, `${iedName}${oldAttrs.ldInst}`),
-    ...rewriteTargets(localVals, `@${oldAttrs.ldInst}`),
-    ...rewriteTargets(localVals, oldAttrs.ldInst),
-  ];
+  return scopeLNReferences(ln).flatMap(({ ldRef, vals }) =>
+    rewriteVals(vals, lnRefPattern(ldRef, oldLN), `${ldRef}/${newLN}`),
+  );
 }
 
 export function buildAPRenameEdits(ap: Element, newName: string): EditV2[] {
@@ -262,6 +246,6 @@ export function buildLNRenameEdits(
         refersTo(el, oldAttrs),
       ),
     ),
-    ...rewriteLNObjectRefs(ied, iedName, ld, oldAttrs, reqAttrs),
+    ...rewriteLNObjectRefs(ln, oldAttrs, reqAttrs),
   ];
 }

@@ -8,6 +8,7 @@ import {
 } from '../src/utils/rename-edits.js';
 
 import { getSGCB } from '../src/utils/ied-scl.js';
+import { findLNReferences } from '../src/utils/ln-model.js';
 
 import { multipleIedsScd } from './fixtures/multiple-ieds.scd.js';
 
@@ -187,6 +188,95 @@ describe('buildLNRenameEdits', () => {
 
     expect(fcda('1').hasAttribute('prefix')).to.be.false;
     expect(val(ied1, 'BareRef')).to.equal('LD1/LTPP1');
+  });
+});
+
+describe('findLNReferences', () => {
+  let doc: Document;
+  const ltpp1 = () =>
+    doc.querySelector(
+      'IED[name="IED1"] LDevice[inst="LD1"] > LN[lnClass="LTPP"][inst="1"]',
+    )!;
+  const valsIn = (ln: Element) => findLNReferences(ln).labels;
+
+  beforeEach(() => {
+    doc = new DOMParser().parseFromString(multipleIedsScd, 'application/xml');
+  });
+
+  it('finds every reference form across the IED and other IEDs', () => {
+    expect(valsIn(ltpp1())).to.have.members([
+      'IED1 LD1/LPCP1.BareRef.setSrcRef',
+      'IED1 LD1/LPCP1.AtRef.setSrcRef',
+      'IED1 LD1/LPCP1.FullRef.setSrcRef',
+      'IED2 Sub/LLN0.RemoteRef.setSrcRef',
+      "FCDA Beh in DataSet 'ptp'",
+    ]);
+  });
+
+  it('skips a longer inst and bare references in other IEDs', () => {
+    const labels = valsIn(ltpp1()).join('\n');
+    expect(labels).not.to.include('LongerInstRef');
+    expect(labels).not.to.include('ForeignBareRef');
+  });
+
+  it('returns only the FCDAs of this LN', () => {
+    const { fcdas } = findLNReferences(ltpp1());
+    expect(fcdas).to.have.length(1);
+    expect(fcdas[0].getAttribute('lnInst')).to.equal('1');
+  });
+
+  it('lists a DAI once even when it has several sGroup Vals', () => {
+    const dai = doc.querySelector('DOI[name="BareRef"] > DAI')!;
+    const second = dai.querySelector('Val')!.cloneNode(true) as Element;
+    second.setAttribute('sGroup', '2');
+    dai.appendChild(second);
+
+    expect(valsIn(ltpp1()).filter(l => l.includes('BareRef'))).to.have.length(
+      1,
+    );
+  });
+
+  it('only matches the ldName form when the LDevice has an ldName', () => {
+    doc
+      .querySelector('IED[name="IED1"] LDevice[inst="LD1"]')!
+      .setAttribute('ldName', 'MyLD');
+    doc.querySelector('DOI[name="FullRef"] Val')!.textContent = 'MyLD/LTPP1';
+
+    expect(valsIn(ltpp1())).to.have.members([
+      'IED1 LD1/LPCP1.FullRef.setSrcRef',
+      "FCDA Beh in DataSet 'ptp'",
+    ]);
+  });
+
+  it('reports exactly the DAIs that a rename rewrites', () => {
+    const ln = ltpp1();
+    const reported = valsIn(ln).filter(l => !l.startsWith('FCDA'));
+
+    const before = new Map(
+      Array.from(doc.querySelectorAll('DAI > Val')).map(v => [
+        v,
+        v.textContent,
+      ]),
+    );
+    apply(
+      buildLNRenameEdits(ln, {
+        ldInst: 'LD1',
+        lnClass: 'LTPP',
+        prefix: 'GM_',
+        lnInst: '1',
+      }),
+    );
+    const rewritten = Array.from(before)
+      .filter(([v, text]) => v.textContent !== text)
+      .map(([v]) => {
+        const doi = v.closest('DOI')!.getAttribute('name');
+        const ied = v.closest('IED')!.getAttribute('name');
+        return `${ied} ${doi}`;
+      });
+
+    expect(rewritten).to.have.members(
+      reported.map(l => `${l.split(' ')[0]} ${l.split('.')[1]}`),
+    );
   });
 });
 
